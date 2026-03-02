@@ -67,13 +67,13 @@ T-NSA-810-CIA/
 │   ├── integration/           # Integration tests
 │   └── validation/            # Infrastructure validation scripts
 │
-├── .github/                        # GitHub-specific
-│   ├── workflows/                 # CI/CD pipelines
+├── .github/                   # GitHub-specific
+│   ├── workflows/             # CI/CD pipelines
 │   ├── ISSUE_TEMPLATE/
 │
-├── .gitignore                      # Git ignore patterns
-├── README.md                       # Project overview
-└── CONTRIBUTING.md                 # Contribution guidelines
+├── .gitignore                 # Git ignore patterns
+├── README.md                  # Project overview
+└── CONTRIBUTING.md            # Contribution guidelines
 ```
 
 See our [Repository Strategy](https://github.com/mr-andrej/T-NSA-810-CIA/wiki/Repository-Strategy) wiki page for detailed justification.
