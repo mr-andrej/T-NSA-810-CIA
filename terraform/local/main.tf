@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "libvirt" {
-  uri = "qemu:///system"
+  uri = "qemu:///system?socket=/run/libvirt/libvirt-sock"
 }
 
 # Disque principal
@@ -29,12 +29,12 @@ resource "libvirt_volume" "proxmox_iso" {
   pool   = "default"
   target = {
     format = {
-      type = "raw"
+      type = "iso"
     }
   }
   create = {
     content = {
-      url = "/iso-proxmox/proxmox-ve_9.1-1.iso"
+      url = "https://enterprise.proxmox.com/iso/proxmox-ve_9.1-1.iso"
     }
   }
 }
