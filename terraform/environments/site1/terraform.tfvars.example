@@ -1,0 +1,12 @@
+# Copie ce fichier en "terraform.tfvars" et remplis tes vraies valeurs
+# Ne commite JAMAIS ce fichier sur Git !
+
+proxmox_endpoint = "https://TON_IP_PROXMOX:8006"
+proxmox_username = "root@pam"
+proxmox_password = "TON_MOT_DE_PASSE"
+proxmox_node     = "vm4"
+storage_pool     = "local-lvm"
+
+# Vérifie les noms exacts dans : Proxmox > Datacenter > Storage > local > ISO Images
+pfsense_iso = "local:iso/pfSense-CE-2.7.2-RELEASE-amd64.iso"
+ubuntu_iso  = "local:iso/ubuntu-22.04-live-server-amd64.iso"

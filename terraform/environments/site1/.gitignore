@@ -1,0 +1,11 @@
+# Terraform state
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Fichier de variables
+terraform.tfvars
+
+# Fichiers OS
+.DS_Store

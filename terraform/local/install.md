@@ -51,33 +51,7 @@ cat /sys/module/kvm_intel/parameters/nested  # doit retourner Y
 
 ---
 
-## 4. Configuration du storage pool libvirt
-
-```bash
-# Corriger les permissions du dossier
-sudo chown root:libvirt /var/lib/libvirt/images
-sudo chmod 771 /var/lib/libvirt/images
-
-# Créer et activer le pool via qemu:///system (connexion utilisée par Terraform)
-sudo virsh -c qemu:///system pool-define-as --name default --type dir \
-  --target /var/lib/libvirt/images
-sudo virsh -c qemu:///system pool-build default
-sudo virsh -c qemu:///system pool-start default
-sudo virsh -c qemu:///system pool-autostart default
-
-# Vérifier
-virsh -c qemu:///system pool-list --all
-# Résultat attendu :
-#  Name      State    Autostart
-#  default   active   yes
-```
-
----
-
-
----
-
-## 7. Commandes Terraform
+## 4. Commandes Terraform
 
 ```bash
 # Initialiser le projet
@@ -95,7 +69,7 @@ terraform destroy
 
 ---
 
-## 8. Accéder à la VM Proxmox
+## 5. Accéder à la VM Proxmox
 
 ```bash
 # Via virt-manager (interface graphique)
