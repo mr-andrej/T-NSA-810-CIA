@@ -82,17 +82,84 @@ Then scroll down and click Save -> Apply.
 ### Firewall rules
 
 - Go to `Firewall -> Rules`
-- Select the VLAN 10 interface tab
-- Add
-  Action: Pass
-  Source: 10.0.10.0/24
-  Destination: 10.0.20.1 port 5432
-  Description: "App to DB PostgreSQL"
 
-  Action: Block
-  Source: 10.0.10.0/24
-  Destination: 10.0.20.0/24
-  Description: "Deny all other VLAN10 to VLAN20"
+1. Select the VLAN 10 interface tab
+   Add following on the LAN tab
+
+- Rule 1:
+  Action: `Pass`
+  Source: `10.0.10.0/24`
+  Protocol: `TCP`
+  Source: in dropdown list choose Network, then `10.0.10.0/24`
+  Destination: in dropdown choose Network then`10.0.20.1/32` (your DB server's IP), in Destination Port Range section keep other in the dropdown list, and then in `From` type `5432`, `To` type 5432
+  Description: `Allow App to DB PostgreSQL`
+- Rule 2:
+  Action: `pass`
+  Interface: `LAN`
+  Protocol: `Any`
+  Source: `10.0.10.0/24
+Destination: `10.0.20.0/24` Description:`Deny all other traffic VLAN10 to VLAN20`
+- Rule 3:
+  Action: `Block`
+  Interface: `LAN`
+  Protocol: `Any`
+  Source: `10.0.10.0/24`
+  Destination: `10.0.20.0/24`
+  Description: `Deny all other traffic VLAN10 to VLAN20`
+
+Click **Save** after each rule, then click **Apply Changes** once all three are added.
+
+2. Select the VLAN 20 interface tab
+   Add following on the OPT1 tab
+
+- Rule 1
+  Action: `Pass`
+  Interface: `OPT1`
+  Protocol: `TCP`
+  Source: `10.0.20.0/24`
+  Destination: `10.0.10.0/24`, port `5432`
+  Description: `Allow DB responses to App`
+- Rule 2
+  Action: `Block`
+  Interface: `OPT1`
+  Protocol: `Any`
+  Source: `10.0.20.0/24`
+  Destination: `10.0.10.0/24`
+  Description: `Deny all other traffic VLAN20 to VLAN10`
+
+Click **Save**, then **Apply Changes**.
+
+### DNS Forwarding
+
+1. DNS set up
+
+- Go to `Services → DNS Resolver`
+  Make sure it's enabled, then check these options:
+
+  Enable DNS Resolver: ✓
+  Network Interfaces: select `all`
+  Outgoing Network Interfaces: `WAN`
+  DNSSEC: ✓
+  Register DHCP leases: ✓
+  Register DHCP static mappings: ✓
+
+Click **Save**.
+
+- Add Host Overrides for Site 1's own machines. Go to `Services → DNS Resolver → Host Overrides` and add:
+  | Host | Domain | IP | Description |
+  | -------- | -------------- | ----------- | --------------- |
+  | app | site1.internal | 10.0.10.1 | App Server |
+  | db | site1.internal | 10.0.20.1 | Database Server |
+  | firewall | site1.internal | 10.0.10.254 | pfSense S1-FW |
+
+2. Add Domain Override for Site 2 (pre-configure for when VPN is ready)
+   Go to `Services → DNS Resolver → Domain Overrides` and add:
+
+   | Domain         | IP         | Description                                    |
+   | -------------- | ---------- | ---------------------------------------------- |
+   | site2.internal | 172.16.0.1 | Forward Site 2 queries to S2-FW via VPN tunnel |
+
+Click **Save** and **Apply Changes**.
 
 ## Comme Trouble Shooting
 
