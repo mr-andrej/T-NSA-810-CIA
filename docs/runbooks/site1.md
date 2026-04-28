@@ -155,4 +155,19 @@ Your documentation should be a simple markdown note containing:
 
 ---
 
-Once S1-APP is done, S1-DB (#38) is identical — just different IP (`10.0.20.1/24`) and gateway (`10.0.20.254`). You can knock both out in one sitting. Want to start?
+## Trouble Shooting
+### No carrier issue
+
+1. Verify pfSense net1 is on vmbr137:
+   pfSense VM -> Hardware -> look at all Network Devices.
+   net0 should be on vmbr0.
+   net1 should be on vmbr137.
+   If net1 is on a different bridge, move it to vmbr137.
+
+2. Check vmbr137 status in Proxmox:
+   Proxmox shell or Web UI Network section.
+   Is vmbr137 listed?
+   Is it UP?
+   What physical NIC or bond is it attached to?
+
+After done those things I realised that I didn't set up a second network device on pfSense. And also it has more to do with the fact that current Proxmox admin configuration doesn't allow tagged flux so I have done the configuration but I cannot test if it is working properly.
