@@ -1,0 +1,6 @@
+postgresql_version: "16"
+postgresql_db_name: "appdb"
+postgresql_db_user: "appuser"
+postgresql_db_password: "changeme"
+postgresql_allowed_host: "127.0.0.1/32"
+postgresql_port: 5432
