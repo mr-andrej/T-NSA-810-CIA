@@ -1,0 +1,4 @@
+proxmox_api_host: ns3183326.ip-146-59-253.eu
+proxmox_api_user: GR37@pve
+proxmox_api_token_id: ansible
+proxmox_api_token_secret: "{{ vault_proxmox_api_password }}"

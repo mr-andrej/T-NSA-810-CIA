@@ -1,0 +1,49 @@
+- name: Manage Proxmox snapshots for S1-DB (vmid 2037)
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../group_vars/all/vars.yaml
+    - ../group_vars/all/vault.yaml
+
+  vars:
+    vmid: "{{ hostvars['s1_db']['proxmox_vmid'] | default(2037) }}"
+    snapname: "{{ snap_name | default('snapshot-' + lookup('pipe', 'date +%Y%m%d-%H%M')) }}"
+
+  tasks:
+    - name: Create snapshot
+      community.proxmox.proxmox_snap:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: false
+        vmid: "{{ vmid }}"
+        snapname: "{{ snapname }}"
+        description: "{{ snap_description | default('Ansible-managed snapshot') }}"
+        state: present
+      when: snap_action | default('') == 'create'
+
+    - name: Restore snapshot (VM must be stopped)
+      community.proxmox.proxmox_snap:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: false
+        vmid: "{{ vmid }}"
+        snapname: "{{ snapname }}"
+        state: rollback
+      when: snap_action | default('') == 'restore'
+
+    - name: Delete snapshot
+      community.proxmox.proxmox_snap:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: false
+        vmid: "{{ vmid }}"
+        snapname: "{{ snapname }}"
+        state: absent
+      when: snap_action | default('') == 'delete'

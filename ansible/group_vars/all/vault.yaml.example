@@ -1,0 +1,1 @@
+vault_proxmox_api_password: <proxmox-api-token-secret>

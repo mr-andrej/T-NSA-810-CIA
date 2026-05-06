@@ -3,4 +3,4 @@
   become: true
 
   roles:
-    - role: postgresql
+    - role: mongodb
