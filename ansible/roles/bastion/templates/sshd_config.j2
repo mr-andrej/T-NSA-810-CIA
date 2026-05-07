@@ -1,0 +1,22 @@
+# Managed by Ansible — do not edit manually
+
+Port 22
+AddressFamily inet
+
+# Authentication
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+# Restrictions
+AllowUsers bastion
+MaxAuthTries 3
+LoginGraceTime 30
+
+# Forwarding
+AllowTcpForwarding yes
+X11Forwarding no
+
+# Logging
+LogLevel VERBOSE
