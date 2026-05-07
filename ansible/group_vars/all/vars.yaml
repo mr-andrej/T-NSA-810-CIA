@@ -8,4 +8,4 @@ site2_api_user: GR37@pve
 site2_api_token_id: ansible
 site2_api_token_secret: "{{ vault_proxmox_api_password_site2 }}"
 
-bastion_ssh_public_key: "{{ vault_ssh_public_key }}"
+bastion_ssh_public_key: "{{ vault_ssh_public_key | default('') }}"

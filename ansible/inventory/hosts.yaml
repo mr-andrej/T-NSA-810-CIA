@@ -50,7 +50,7 @@ all:
           hosts:
             s2_js:
               ansible_host: 192.168.10.10
-              ansible_user: bastion
+              ansible_user: # TODO: fill in bootstrap SSH user
               proxmox_vmid: 2037
               proxmox_node: vm3
         site2_mt:
