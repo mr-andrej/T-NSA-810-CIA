@@ -1,0 +1,46 @@
+- name: Create bastion admin user
+  user:
+    name: bastion
+    shell: /bin/bash
+    groups: sudo
+    state: present
+    password: "*"
+
+- name: Create .ssh directory for bastion user
+  file:
+    path: /home/bastion/.ssh
+    state: directory
+    owner: bastion
+    group: bastion
+    mode: "0700"
+
+- name: Deploy authorized SSH public key for bastion user
+  copy:
+    content: "{{ bastion_ssh_public_key }}"
+    dest: /home/bastion/.ssh/authorized_keys
+    owner: bastion
+    group: bastion
+    mode: "0600"
+
+- name: Allow bastion user to run sudo without password
+  copy:
+    content: "bastion ALL=(ALL) NOPASSWD:ALL\n"
+    dest: /etc/sudoers.d/bastion
+    owner: root
+    group: root
+    mode: "0440"
+
+- name: Deploy hardened sshd_config
+  template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart sshd
+
+- name: Ensure SSH service is enabled and running
+  service:
+    name: ssh
+    state: started
+    enabled: true

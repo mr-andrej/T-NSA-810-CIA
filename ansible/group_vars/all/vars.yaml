@@ -1,9 +1,11 @@
-site1_api_host:         ns3183326.ip-146-59-253.eu
-site1_api_user:         GR37@pve
-site1_api_token_id:     ansible
+site1_api_host: ns3183326.ip-146-59-253.eu
+site1_api_user: GR37@pve
+site1_api_token_id: ansible
 site1_api_token_secret: "{{ vault_proxmox_api_password_site1 }}"
 
-site2_api_host:         ns3050272.ip-51-255-76.eu
-site2_api_user:         GR37@pve
-site2_api_token_id:     ansible
+site2_api_host: ns3050272.ip-51-255-76.eu
+site2_api_user: GR37@pve
+site2_api_token_id: ansible
 site2_api_token_secret: "{{ vault_proxmox_api_password_site2 }}"
+
+bastion_ssh_public_key: "{{ vault_ssh_public_key }}"

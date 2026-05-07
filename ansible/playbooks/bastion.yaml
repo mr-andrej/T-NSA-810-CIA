@@ -1,0 +1,6 @@
+- name: Configure bastion host
+  hosts: site2_js
+  become: true
+
+  roles:
+    - bastion

@@ -49,8 +49,8 @@ all:
         site2_js:
           hosts:
             s2_js:
-              ansible_host: # TODO: fill in VM IP
-              ansible_user: # TODO: fill in SSH user
+              ansible_host: 192.168.10.10
+              ansible_user: bastion
               proxmox_vmid: 2037
               proxmox_node: vm3
         site2_mt:
