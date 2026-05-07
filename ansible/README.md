@@ -72,7 +72,7 @@ Manages snapshots for VM `S1-DB` (vmid 2037) on `ns3183326.ip-146-59-253.eu`.
 ansible-playbook playbooks/proxmox_snapshot.yaml -e "snap_action=create snap_name=pre-mongo" --ask-vault-pass
 ```
 
-**Restore a snapshot** (VM must be stopped first):
+**Restore a snapshot** (Proxmox will handle stopping and restarting the VM):
 
 ```bash
 ansible-playbook playbooks/proxmox_snapshot.yaml -e "snap_action=restore snap_name=pre-mongo" --ask-vault-pass

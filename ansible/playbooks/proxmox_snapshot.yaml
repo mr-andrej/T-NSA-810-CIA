@@ -29,7 +29,7 @@
         state: present
       when: snap_action | default('') == 'create'
 
-    - name: Restore snapshot (VM must be stopped)
+    - name: Restore snapshot
       community.proxmox.proxmox_snap:
         api_host:         "{{ api_host }}"
         api_user:         "{{ api_user }}"
