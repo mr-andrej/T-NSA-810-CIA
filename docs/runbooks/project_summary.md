@@ -75,3 +75,12 @@ Restrict bastion outbound access — not full LAN access ⬜ pending
 Document and justify DMZ positioning of bastion ⬜ pending
 Add Filebeat agent on S1-APP for log shipping to Elasticsearch ⬜ pending
 Review S2-MT resource load — Elasticsearch is RAM-hungry, may need to trim services ⬜ pending
+
+## Recent Operational Updates (Team Chat, translated)
+
+Firewall hardening is currently being tightened on S2-FW. Goal is to block non-VPN traffic by default.
+Remote access to pfSense management may be blocked unless connected through VPN. Team members should install OpenVPN clients in advance.
+Proxmox/VM platform-level access remains available, so this policy should not cut off direct VM/Proxmox access.
+Some VM-to-VM ping tests are intentionally blocked by specific firewall policy. This is expected behavior and does not automatically mean routing is broken.
+Outbound package updates (for example apt update) are still expected to work via external DNS.
+VPN user certificate generation is planned by the teammate, with private follow-up needed for per-user information.
