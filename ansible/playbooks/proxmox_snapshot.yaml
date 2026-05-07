@@ -1,4 +1,4 @@
-- name: Manage Proxmox snapshots for S1-DB (vmid 2037)
+- name: Manage Proxmox VM snapshots
   hosts: localhost
   gather_facts: false
 
@@ -7,43 +7,48 @@
     - ../group_vars/all/vault.yaml
 
   vars:
-    vmid: "{{ hostvars['s1_db']['proxmox_vmid'] | default(2037) }}"
-    snapname: "{{ snap_name | default('snapshot-' + lookup('pipe', 'date +%Y%m%d-%H%M')) }}"
+    site:       "{{ site | default('site1') }}"
+    vmid:       "{{ vmid | default('2037') }}"
+    snapname:   "{{ snap_name | default('snapshot-' + lookup('pipe', 'date +%Y%m%d-%H%M')) }}"
+    api_host:   "{{ vars[site + '_api_host'] }}"
+    api_user:   "{{ vars[site + '_api_user'] }}"
+    api_token:  "{{ vars[site + '_api_token_id'] }}"
+    api_secret: "{{ vars[site + '_api_token_secret'] }}"
 
   tasks:
     - name: Create snapshot
       community.proxmox.proxmox_snap:
-        api_host: "{{ proxmox_api_host }}"
-        api_user: "{{ proxmox_api_user }}"
-        api_token_id: "{{ proxmox_api_token_id }}"
-        api_token_secret: "{{ proxmox_api_token_secret }}"
+        api_host:         "{{ api_host }}"
+        api_user:         "{{ api_user }}"
+        api_token_id:     "{{ api_token }}"
+        api_token_secret: "{{ api_secret }}"
         validate_certs: false
-        vmid: "{{ vmid }}"
-        snapname: "{{ snapname }}"
+        vmid:        "{{ vmid }}"
+        snapname:    "{{ snapname }}"
         description: "{{ snap_description | default('Ansible-managed snapshot') }}"
         state: present
       when: snap_action | default('') == 'create'
 
     - name: Restore snapshot (VM must be stopped)
       community.proxmox.proxmox_snap:
-        api_host: "{{ proxmox_api_host }}"
-        api_user: "{{ proxmox_api_user }}"
-        api_token_id: "{{ proxmox_api_token_id }}"
-        api_token_secret: "{{ proxmox_api_token_secret }}"
+        api_host:         "{{ api_host }}"
+        api_user:         "{{ api_user }}"
+        api_token_id:     "{{ api_token }}"
+        api_token_secret: "{{ api_secret }}"
         validate_certs: false
-        vmid: "{{ vmid }}"
+        vmid:     "{{ vmid }}"
         snapname: "{{ snapname }}"
         state: rollback
       when: snap_action | default('') == 'restore'
 
     - name: Delete snapshot
       community.proxmox.proxmox_snap:
-        api_host: "{{ proxmox_api_host }}"
-        api_user: "{{ proxmox_api_user }}"
-        api_token_id: "{{ proxmox_api_token_id }}"
-        api_token_secret: "{{ proxmox_api_token_secret }}"
+        api_host:         "{{ api_host }}"
+        api_user:         "{{ api_user }}"
+        api_token_id:     "{{ api_token }}"
+        api_token_secret: "{{ api_secret }}"
         validate_certs: false
-        vmid: "{{ vmid }}"
+        vmid:     "{{ vmid }}"
         snapname: "{{ snapname }}"
         state: absent
       when: snap_action | default('') == 'delete'

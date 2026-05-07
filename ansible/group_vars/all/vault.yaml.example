@@ -1,1 +1,2 @@
-vault_proxmox_api_password: <proxmox-api-token-secret>
+vault_proxmox_api_password_site1: <site1-api-token-secret>
+vault_proxmox_api_password_site2: <site2-api-token-secret>
