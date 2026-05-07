@@ -1,0 +1,62 @@
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+
+  children:
+    proxmox_api:
+      hosts:
+        pve_site1:
+          ansible_host: ns3183326.ip-146-59-253.eu
+          ansible_connection: local
+        pve_site2:
+          ansible_host: ns3050272.ip-51-255-76.eu
+          ansible_connection: local
+
+    site1:
+      children:
+        site1_fw:
+          hosts:
+            s1_fw:
+              ansible_host: # TODO: fill in VM IP
+              ansible_user: # TODO: fill in SSH user
+              proxmox_vmid: 105
+              proxmox_node: vm002
+        site1_db:
+          hosts:
+            s1_db:
+              ansible_host: # TODO: fill in VM IP
+              ansible_user: # TODO: fill in SSH user
+              proxmox_vmid: 2037
+              proxmox_node: vm002
+        site1_app:
+          hosts:
+            s1_app:
+              ansible_host: # TODO: fill in VM IP
+              ansible_user: # TODO: fill in SSH user
+              proxmox_vmid: 3037
+              proxmox_node: vm002
+
+    site2:
+      children:
+        site2_fw:
+          hosts:
+            s2_fw:
+              ansible_host: # TODO: fill in VM IP
+              ansible_user: # TODO: fill in SSH user
+              proxmox_vmid: 124
+              proxmox_node: vm3
+        site2_js:
+          hosts:
+            s2_js:
+              ansible_host: # TODO: fill in VM IP
+              ansible_user: # TODO: fill in SSH user
+              proxmox_vmid: 2037
+              proxmox_node: vm3
+        site2_mt:
+          hosts:
+            s2_mt:
+              ansible_host: # TODO: fill in VM IP
+              ansible_user: # TODO: fill in SSH user
+              proxmox_vmid: 3037
+              proxmox_node: vm3
