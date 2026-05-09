@@ -1,0 +1,31 @@
+- name: Create user on managed VM
+  user:
+    name: "{{ item.name }}"
+    shell: /bin/bash
+    state: present
+    password: "*"
+  loop: "{{ vm_users }}"
+
+- name: Create .ssh directory for each user
+  file:
+    path: "/home/{{ item.name }}/.ssh"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0700"
+  loop: "{{ vm_users }}"
+
+- name: Deploy bastion public key for each user
+  lineinfile:
+    path: "/home/{{ item.name }}/.ssh/authorized_keys"
+    line: "{{ item.bastion_public_key }}"
+    create: yes
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0600"
+  loop: "{{ vm_users }}"
+
+- name: Unlock user accounts
+  command: usermod -p '*' "{{ item.name }}"
+  loop: "{{ vm_users }}"
+  changed_when: false

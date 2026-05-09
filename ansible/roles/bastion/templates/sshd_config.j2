@@ -1,5 +1,4 @@
 # Managed by Ansible — do not edit manually
-
 Port 22
 AddressFamily inet
 
@@ -10,7 +9,8 @@ PubkeyAuthentication yes
 AuthorizedKeysFile .ssh/authorized_keys
 
 # Restrictions
-AllowUsers bastion
+AllowUsers bastion {% for user in bastion_users %}{{ user.name }} {% endfor %}
+
 MaxAuthTries 3
 LoginGraceTime 30
 

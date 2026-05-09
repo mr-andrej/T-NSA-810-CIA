@@ -1,6 +1,10 @@
 - name: Configure bastion host
   hosts: site2_js
   become: true
-
+  vars:
+    bastion_ssh_public_key: # Add Key
+    bastion_users:
+      - name: lucas
+        pc_public_key: # Add Key
   roles:
     - bastion
