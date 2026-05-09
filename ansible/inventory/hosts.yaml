@@ -25,15 +25,17 @@ all:
         site1_db:
           hosts:
             s1_db:
-              ansible_host: # TODO: fill in VM IP
-              ansible_user: # TODO: fill in SSH user
+              ansible_host: 10.0.20.1
+              ansible_user: administrator
+              ansible_ssh_common_args: "-o ProxyJump=bastion -o IdentitiesOnly=yes"
               proxmox_vmid: 2037
               proxmox_node: vm002
         site1_app:
           hosts:
             s1_app:
-              ansible_host: # TODO: fill in VM IP
-              ansible_user: # TODO: fill in SSH user
+              ansible_host: 10.0.10.1
+              ansible_user: administrator
+              ansible_ssh_common_args: "-o ProxyJump=bastion -o IdentitiesOnly=yes"
               proxmox_vmid: 3037
               proxmox_node: vm002
 
@@ -50,13 +52,14 @@ all:
           hosts:
             s2_js:
               ansible_host: 192.168.10.10
-              ansible_user: # TODO: fill in bootstrap SSH user
+              ansible_user: bastion
               proxmox_vmid: 2037
               proxmox_node: vm3
         site2_mt:
           hosts:
             s2_mt:
-              ansible_host: # TODO: fill in VM IP
-              ansible_user: # TODO: fill in SSH user
+              ansible_host: 192.168.20.1
+              ansible_user: administrator
+              ansible_ssh_common_args: "-o ProxyJump=bastion -o IdentitiesOnly=yes"
               proxmox_vmid: 3037
               proxmox_node: vm3

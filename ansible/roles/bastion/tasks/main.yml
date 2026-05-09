@@ -6,7 +6,6 @@
     append: true
     state: present
     password: "*"
-    password_lock: true
 
 - name: Create .ssh directory for bastion user
   file:
@@ -17,9 +16,10 @@
     mode: "0700"
 
 - name: Deploy authorized SSH public key for bastion user
-  copy:
-    content: "{{ bastion_ssh_public_key }}"
-    dest: /home/bastion/.ssh/authorized_keys
+  lineinfile:
+    path: /home/bastion/.ssh/authorized_keys
+    line: "{{ bastion_ssh_public_key }}"
+    create: yes
     owner: bastion
     group: bastion
     mode: "0600"
@@ -48,3 +48,54 @@
     name: ssh
     state: started
     enabled: true
+
+- name: Create normal users on bastion
+  user:
+    name: "{{ item.name }}"
+    shell: /bin/bash
+    state: present
+    password: "*"
+  loop: "{{ bastion_users }}"
+
+- name: Create .ssh directory for each user
+  file:
+    path: "/home/{{ item.name }}/.ssh"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0700"
+  loop: "{{ bastion_users }}"
+
+- name: Deploy PC public key for each user
+  lineinfile:
+    path: "/home/{{ item.name }}/.ssh/authorized_keys"
+    line: "{{ item.pc_public_key }}"
+    create: yes
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0600"
+  loop: "{{ bastion_users }}"
+
+- name: Generate SSH keypair for each user on bastion
+  community.crypto.openssh_keypair:
+    path: "/home/{{ item.name }}/.ssh/id_ed25519"
+    type: ed25519
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0600"
+    force: false
+  loop: "{{ bastion_users }}"
+
+- name: Unlock user accounts for SSH key authentication
+  command: usermod -p '*' "{{ item.name }}"
+  loop: "{{ bastion_users }}"
+  changed_when: false
+
+- name: Deploy SSH client config for each user
+  template:
+    src: ssh_config.j2
+    dest: "/home/{{ item.name }}/.ssh/config"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0600"
+  loop: "{{ bastion_users }}"

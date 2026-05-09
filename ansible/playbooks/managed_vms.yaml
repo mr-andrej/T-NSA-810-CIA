@@ -1,0 +1,9 @@
+- name: Configure managed VMs
+  hosts: site1_app, site1_db, site2_mt
+  become: true
+  vars:
+    vm_users:
+      - name: lucas
+        bastion_public_key: # add key
+  roles:
+    - managed_vm
