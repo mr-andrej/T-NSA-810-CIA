@@ -99,3 +99,12 @@
     group: "{{ item.name }}"
     mode: "0600"
   loop: "{{ bastion_users }}"
+
+- name: Remove weak ECDSA host key
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/ssh/ssh_host_ecdsa_key
+    - /etc/ssh/ssh_host_ecdsa_key.pub
+  notify: Restart sshd
