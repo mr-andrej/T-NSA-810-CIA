@@ -33,6 +33,15 @@
     mode: "0440"
     validate: /usr/sbin/visudo -cf %s
 
+- name: Generate SSH keypair for bastion system user
+  community.crypto.openssh_keypair:
+    path: /home/bastion/.ssh/id_ed25519
+    type: ed25519
+    owner: bastion
+    group: bastion
+    mode: "0600"
+    force: false
+
 - name: Deploy hardened sshd_config
   template:
     src: sshd_config.j2
@@ -108,3 +117,18 @@
     - /etc/ssh/ssh_host_ecdsa_key
     - /etc/ssh/ssh_host_ecdsa_key.pub
   notify: Restart sshd
+
+- name: Deploy log sync script
+  template:
+    src: sync-logs.sh.j2
+    dest: /usr/local/bin/sync-bastion-logs.sh
+    owner: bastion
+    group: bastion
+    mode: "0750"
+
+- name: Configure cron job for log sync
+  cron:
+    name: "Sync bastion logs to S2-MT"
+    user: bastion
+    minute: "*/5"
+    job: "/usr/local/bin/sync-bastion-logs.sh >> /var/log/bastion-sync.log 2>&1"

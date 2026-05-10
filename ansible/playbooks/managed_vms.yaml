@@ -4,6 +4,7 @@
   vars:
     vm_users:
       - name: lucas
-        bastion_public_key: # add key
+        bastion_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII9sR53p4rYSNo3G751IqEs/PEOUv+ets1Zl9HKs1hTE"
+    bastion_system_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPYi81/d96pnEde1kJs8IvLe210eMDrKQ+l/quFXWVt"
   roles:
     - managed_vm
