@@ -2,9 +2,9 @@
   hosts: site2_js
   become: true
   vars:
-    bastion_ssh_public_key: # Add Key
+    bastion_ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBczyxpPoAW0qDE/SjnXOdTkLdmkUxffe/SrMQvrdH7 lucasnimes30000@gmail.com"
     bastion_users:
       - name: lucas
-        pc_public_key: # Add Key
+        pc_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBczyxpPoAW0qDE/SjnXOdTkLdmkUxffe/SrMQvrdH7 lucasnimes30000@gmail.com"
   roles:
     - bastion
