@@ -2,7 +2,7 @@
   user:
     name: bastion
     shell: /bin/bash
-    groups: sudo
+    groups: sudo,adm
     append: true
     state: present
     password: "*"
@@ -118,6 +118,14 @@
     - /etc/ssh/ssh_host_ecdsa_key.pub
   notify: Restart sshd
 
+- name: Create bastion sync log file
+  file:
+    path: /home/bastion/bastion-sync.log
+    state: touch
+    owner: bastion
+    group: bastion
+    mode: "0640"
+
 - name: Deploy log sync script
   template:
     src: sync-logs.sh.j2
@@ -131,4 +139,4 @@
     name: "Sync bastion logs to S2-MT"
     user: bastion
     minute: "*/1"
-    job: "/usr/local/bin/sync-bastion-logs.sh >> /var/log/bastion-sync.log 2>&1"
+    job: "/usr/local/bin/sync-bastion-logs.sh >> /home/bastion/bastion-sync.log 2>&1"
