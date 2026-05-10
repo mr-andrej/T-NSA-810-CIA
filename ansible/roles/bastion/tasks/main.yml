@@ -130,5 +130,5 @@
   cron:
     name: "Sync bastion logs to S2-MT"
     user: bastion
-    minute: "*/5"
+    minute: "*/1"
     job: "/usr/local/bin/sync-bastion-logs.sh >> /var/log/bastion-sync.log 2>&1"
