@@ -55,18 +55,9 @@
 - name: Deploy bastion system key for bastion-logs user
   lineinfile:
     path: /home/bastion-logs/.ssh/authorized_keys
-    line: "{{ bastion_system_public_key }}"
+    line: 'command="rsync --server -az --append . /var/log/bastion/bastion-auth.log",no-pty,no-agent-forwarding,no-port-forwarding {{ bastion_system_public_key }}'
     create: yes
     owner: bastion-logs
     group: bastion-logs
     mode: "0600"
-  when: inventory_hostname == 's2_mt'
-
-- name: Create bastion log directory on S2-MT
-  file:
-    path: /var/log/bastion
-    state: directory
-    owner: bastion-logs
-    group: bastion-logs
-    mode: "0750"
   when: inventory_hostname == 's2_mt'

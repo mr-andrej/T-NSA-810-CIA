@@ -6,8 +6,9 @@ DEST_HOST="bastion-logs@192.168.20.1"
 DEST_PATH="/var/log/bastion/bastion-auth.log"
 LOG_FILE="/var/log/auth.log"
 SSH_KEY="/home/bastion/.ssh/id_ed25519"
+KNOWN_HOSTS="/home/bastion/.ssh/s2-mt_known_hosts"
 
 rsync -az --append \
-  -e "ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no" \
+  -e "ssh -i ${SSH_KEY} -o UserKnownHostsFile=${KNOWN_HOSTS} -o StrictHostKeyChecking=accept-new" \
   ${LOG_FILE} \
   ${DEST_HOST}:${DEST_PATH}
