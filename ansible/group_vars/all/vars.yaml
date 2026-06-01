@@ -1,3 +1,5 @@
+cloudinit_ssh_pubkey: "ssh-ed25519 AAAA..."  # TODO: replace with output of: cat ~/.ssh/cia_ansible.pub
+
 site1_api_host:         ns3183326.ip-146-59-253.eu
 site1_api_user:         GR37@pve
 site1_api_token_id:     ansible

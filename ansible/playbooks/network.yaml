@@ -1,0 +1,6 @@
+- name: Configure network
+  hosts: "{{ target | default('db_servers') }}"
+  become: true
+
+  roles:
+    - role: network

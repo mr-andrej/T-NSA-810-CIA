@@ -1,0 +1,26 @@
+- name: Disable cloud-init network management
+  ansible.builtin.template:
+    src: disable-cloud-init-network.j2
+    dest: /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Configure netplan
+  ansible.builtin.template:
+    src: netplan.j2
+    dest: /etc/netplan/99-ansible.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  notify: netplan changed
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ network_hostname }}"
+
+- name: Update /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^{{ network_address }}'
+    line: "{{ network_address }} {{ network_hostname }}.{{ network_dns_search | first }} {{ network_hostname }}"

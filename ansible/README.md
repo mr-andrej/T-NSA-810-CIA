@@ -51,6 +51,34 @@ ansible-vault edit group_vars/all/vault.yaml
 | `vault_proxmox_api_password_site1` | API token secret for `GR37@pve!ansible` on site1 |
 | `vault_proxmox_api_password_site2` | API token secret for `GR37@pve!ansible` on site2 |
 
+## SSH key setup
+
+All VMs use the `cia` user with SSH key authentication (no password).
+
+Generate the project key once on your laptop:
+
+```bash
+ssh-keygen -t ed25519 -C "cia-ansible" -f ~/.ssh/cia_ansible
+```
+
+Then copy the public key into `group_vars/all/vars.yaml`:
+
+```bash
+cat ~/.ssh/cia_ansible.pub
+```
+
+Paste the output as the value of `cloudinit_ssh_pubkey` in `group_vars/all/vars.yaml`.
+
+The private key (`~/.ssh/cia_ansible`) stays on your laptop and is never committed.
+
+To use this key with SSH and Ansible, add to `~/.ssh/config`:
+
+```
+Host 10.0.*.*
+    User cia
+    IdentityFile ~/.ssh/cia_ansible
+```
+
 ## Proxmox API token
 
 The playbooks authenticate to the Proxmox API using a token (not a password).
@@ -89,6 +117,25 @@ make help
 ```
 
 If `SNAP` is omitted on create, the snapshot is named `snapshot-YYYYMMDD-HHMM` automatically.
+
+## VM initial setup (two-phase)
+
+For each new VM, run these in order:
+
+**Phase 1 — cloud-init via Proxmox API** (injects SSH key + creates `cia` user):
+```bash
+make cloudinit.site1.db
+```
+
+**Phase 2 — network config via SSH** (applies VLAN/IP via Netplan):
+1. Find the VM's current DHCP IP in the Proxmox console: `ip addr`
+2. Fill it in as `ansible_host` for the host in `inventory/hosts.yaml`
+3. Run:
+```bash
+make network.site1.db
+```
+
+SSH will drop when `netplan apply` runs — that's expected. After that, update `ansible_host` in the inventory to the static IP (`10.0.20.1` for s1_db).
 
 ## Playbooks
 

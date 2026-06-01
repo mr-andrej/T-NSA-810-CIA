@@ -1,0 +1,12 @@
+network_hostname: db
+network_physical_iface: enp6s10
+network_vlan_iface: enp6s10.20
+network_vlan_id: 20
+network_address: 10.0.20.1
+network_prefix: 24
+network_gateway: 10.0.20.254
+network_dns_nameservers:
+  - 10.0.20.254
+  - 8.8.8.8
+network_dns_search:
+  - site1.internal

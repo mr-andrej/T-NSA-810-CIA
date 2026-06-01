@@ -1,0 +1,9 @@
+network_hostname: "{{ inventory_hostname }}"
+network_physical_iface: eth0
+network_vlan_iface: eth0.20
+network_vlan_id: 20
+network_address: ~
+network_prefix: 24
+network_gateway: ~
+network_dns_nameservers: []
+network_dns_search: []

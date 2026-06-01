@@ -1,0 +1,38 @@
+- name: Configure cloud-init on VM
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../group_vars/all/vars.yaml
+    - ../group_vars/all/vault.yaml
+
+  vars:
+    api_host:   "{{ vars[site + '_api_host'] }}"
+    api_user:   "{{ vars[site + '_api_user'] }}"
+    api_token:  "{{ vars[site + '_api_token_id'] }}"
+    api_secret: "{{ vars[site + '_api_token_secret'] }}"
+
+  tasks:
+    - name: Set cloud-init configuration
+      community.proxmox.proxmox_kvm:
+        api_host:         "{{ api_host }}"
+        api_user:         "{{ api_user }}"
+        api_token_id:     "{{ api_token }}"
+        api_token_secret: "{{ api_secret }}"
+        validate_certs: false
+        vmid:    "{{ vmid }}"
+        node:    "{{ node }}"
+        ciuser:  cia
+        sshkeys: "{{ cloudinit_ssh_pubkey }}"
+        update:  true
+
+    - name: Restart VM to apply cloud-init
+      community.proxmox.proxmox_kvm:
+        api_host:         "{{ api_host }}"
+        api_user:         "{{ api_user }}"
+        api_token_id:     "{{ api_token }}"
+        api_token_secret: "{{ api_secret }}"
+        validate_certs: false
+        vmid:  "{{ vmid }}"
+        node:  "{{ node }}"
+        state: restarted

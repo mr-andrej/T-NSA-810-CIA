@@ -1,5 +1,6 @@
-PLAYBOOK = ansible-playbook playbooks/proxmox_snapshot.yaml --ask-vault-pass
-SNAP    ?= snapshot
+PLAYBOOK       = ansible-playbook playbooks/proxmox_snapshot.yaml --ask-vault-pass
+PLAYBOOK_LOCAL = ansible-playbook playbooks/proxmox_cloudinit.yaml --ask-vault-pass
+SNAP          ?= snapshot
 
 # Site 1 — ns3183326.ip-146-59-253.eu
 SITE1_FW  = 105
@@ -38,6 +39,21 @@ snap.delete.site2.js:   ; $(PLAYBOOK) -e "snap_action=delete  site=site2 vmid=$(
 snap.create.site2.mt:   ; $(PLAYBOOK) -e "snap_action=create  site=site2 vmid=$(SITE2_MT)  snap_name=$(SNAP)"
 snap.restore.site2.mt:  ; $(PLAYBOOK) -e "snap_action=restore site=site2 vmid=$(SITE2_MT)  snap_name=$(SNAP)"
 snap.delete.site2.mt:   ; $(PLAYBOOK) -e "snap_action=delete  site=site2 vmid=$(SITE2_MT)  snap_name=$(SNAP)"
+
+# ---- Cloud-init ------------------------------------------------------------
+
+cloudinit.site1.fw:  ; $(PLAYBOOK_LOCAL) -e "site=site1 vmid=$(SITE1_FW)  node=vm002"
+cloudinit.site1.db:  ; $(PLAYBOOK_LOCAL) -e "site=site1 vmid=$(SITE1_DB)  node=vm002"
+cloudinit.site1.app: ; $(PLAYBOOK_LOCAL) -e "site=site1 vmid=$(SITE1_APP) node=vm002"
+
+cloudinit.site2.fw:  ; $(PLAYBOOK_LOCAL) -e "site=site2 vmid=$(SITE2_FW)  node=vm3"
+cloudinit.site2.js:  ; $(PLAYBOOK_LOCAL) -e "site=site2 vmid=$(SITE2_JS)  node=vm3"
+cloudinit.site2.mt:  ; $(PLAYBOOK_LOCAL) -e "site=site2 vmid=$(SITE2_MT)  node=vm3"
+
+# ---- Network ---------------------------------------------------------------
+
+network.site1.db:
+	ansible-playbook playbooks/network.yaml -e "target=s1_db" --ask-vault-pass
 
 # ---- Help ------------------------------------------------------------------
 

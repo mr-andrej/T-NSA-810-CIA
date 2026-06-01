@@ -1,0 +1,17 @@
+network:
+  version: 2
+  ethernets:
+    {{ network_physical_iface }}:
+      dhcp4: false
+  vlans:
+    {{ network_vlan_iface }}:
+      id: {{ network_vlan_id }}
+      link: {{ network_physical_iface }}
+      addresses:
+        - {{ network_address }}/{{ network_prefix }}
+      routes:
+        - to: default
+          via: {{ network_gateway }}
+      nameservers:
+        addresses: {{ network_dns_nameservers | to_json }}
+        search: {{ network_dns_search | to_json }}
