@@ -2,18 +2,18 @@
 
 Host s1-app
     HostName 10.0.10.1
-    User lucas
+    User {{ item.name }}
     IdentityFile ~/.ssh/id_ed25519
     IdentitiesOnly yes
 
 Host s1-db
     HostName 10.0.20.1
-    User lucas
+    User {{ item.name }}
     IdentityFile ~/.ssh/id_ed25519
     IdentitiesOnly yes
 
 Host s2-mt
     HostName 192.168.20.1
-    User lucas
+    User {{ item.name }}
     IdentityFile ~/.ssh/id_ed25519
     IdentitiesOnly yes

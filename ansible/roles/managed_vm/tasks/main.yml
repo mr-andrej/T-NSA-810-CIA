@@ -4,6 +4,8 @@
     shell: /bin/bash
     state: present
     password: "*"
+    groups: "{{ 'sudo' if item.sudo | default(false) else '' }}"
+    append: true
   loop: "{{ vm_users }}"
 
 - name: Create .ssh directory for each user
@@ -61,3 +63,14 @@
     group: bastion-logs
     mode: "0600"
   when: inventory_hostname == 's2_mt'
+
+- name: Allow sudo users to run without password on managed VMs
+  copy:
+    content: "{{ item.name }} ALL=(ALL) NOPASSWD:ALL\n"
+    dest: "/etc/sudoers.d/{{ item.name }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  loop: "{{ vm_users }}"
+  when: item.sudo | default(false)
