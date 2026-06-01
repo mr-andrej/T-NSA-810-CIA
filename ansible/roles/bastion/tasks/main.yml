@@ -140,3 +140,24 @@
     user: bastion
     minute: "*/1"
     job: "/usr/local/bin/sync-bastion-logs.sh >> /home/bastion/bastion-sync.log 2>&1"
+
+- name: Create normal users on bastion
+  user:
+    name: "{{ item.name }}"
+    shell: /bin/bash
+    state: present
+    password: "*"
+    groups: "{{ 'sudo' if item.sudo | default(false) else '' }}"
+    append: true
+  loop: "{{ bastion_users }}"
+
+- name: Allow sudo users to run without password on bastion
+  copy:
+    content: "{{ item.name }} ALL=(ALL) NOPASSWD:ALL\n"
+    dest: "/etc/sudoers.d/{{ item.name }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  loop: "{{ bastion_users }}"
+  when: item.sudo | default(false)

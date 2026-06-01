@@ -6,5 +6,12 @@
     bastion_users:
       - name: lucas
         pc_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBczyxpPoAW0qDE/SjnXOdTkLdmkUxffe/SrMQvrdH7 lucasnimes30000@gmail.com"
+        sudo: true
+      - name: paul
+        pc_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPTRPkE+TtUowwE0A1klSRqNiEluEiMg93WJJ1a2BDt3 paul1.decauchy@epitech.eu"
+        sudo: true
+      - name: andrej
+        pc_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOpp/sX/ZV2oh2uKiMqzIDPNALDYciDnvO4FWBayxJdI mrandrej@github.com"
+        sudo: true
   roles:
     - bastion
