@@ -1,0 +1,121 @@
+---
+# Installs and configures PostgreSQL on the Site 1 database server, then creates
+# an application database/role and a simple test table to prove it works.
+# All database-object tasks connect over the local socket as the `postgres`
+# system user (peer auth), hence `become_user: postgres`.
+
+- name: Install PostgreSQL and the Python driver for the postgresql modules
+  ansible.builtin.apt:
+    name:
+      - postgresql
+      - python3-psycopg2
+    state: present
+    update_cache: true
+  tags: [install]
+
+- name: Ensure PostgreSQL is started and enabled
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+  tags: [install]
+
+- name: Locate the active pg_hba.conf
+  community.postgresql.postgresql_query:
+    query: "SHOW hba_file;"
+  become_user: postgres
+  changed_when: false
+  register: pg_hba_query
+  tags: [config]
+
+- name: Set listen_addresses
+  community.postgresql.postgresql_set:
+    name: listen_addresses
+    value: "{{ pg_listen_addresses }}"
+  become_user: postgres
+  notify: restart postgresql
+  tags: [config]
+
+- name: Allow application/bastion networks in pg_hba.conf
+  community.postgresql.postgresql_pg_hba:
+    dest: "{{ pg_hba_query.query_result[0].hba_file }}"
+    contype: host
+    databases: "{{ pg_db_name }}"
+    users: "{{ pg_app_user }}"
+    source: "{{ item }}"
+    method: scram-sha-256
+    create: true
+  loop: "{{ pg_allowed_cidrs }}"
+  notify: reload postgresql
+  tags: [config]
+
+- name: Configure local logging (forwarded to monitoring by the VM log shipper)
+  community.postgresql.postgresql_set:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+  loop: "{{ pg_log_settings | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  become_user: postgres
+  notify: reload postgresql
+  tags: [config]
+
+# Apply listen_addresses (restart) and pg_hba (reload) before opening client
+# connections, so the verification steps below run against the final config.
+- name: Apply PostgreSQL configuration changes now
+  ansible.builtin.meta: flush_handlers
+
+- name: Create the application role
+  community.postgresql.postgresql_user:
+    name: "{{ pg_app_user }}"
+    password: "{{ pg_app_password }}"
+    role_attr_flags: LOGIN
+  become_user: postgres
+  no_log: true
+  tags: [provision]
+
+- name: Create the application database owned by the application role
+  community.postgresql.postgresql_db:
+    name: "{{ pg_db_name }}"
+    owner: "{{ pg_app_user }}"
+    state: present
+  become_user: postgres
+  tags: [provision]
+
+- name: Create the healthcheck test table
+  community.postgresql.postgresql_table:
+    db: "{{ pg_db_name }}"
+    name: "{{ pg_test_table }}"
+    owner: "{{ pg_app_user }}"
+    columns:
+      - id serial PRIMARY KEY
+      - label text NOT NULL
+      - created_at timestamptz NOT NULL DEFAULT now()
+  become_user: postgres
+  tags: [provision]
+
+- name: Seed a healthcheck row (idempotent)
+  community.postgresql.postgresql_query:
+    db: "{{ pg_db_name }}"
+    query: >-
+      INSERT INTO {{ pg_test_table }} (label)
+      SELECT 'ansible-healthcheck'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM {{ pg_test_table }} WHERE label = 'ansible-healthcheck'
+      );
+  become_user: postgres
+  tags: [provision]
+
+- name: Read the healthcheck table back
+  community.postgresql.postgresql_query:
+    db: "{{ pg_db_name }}"
+    query: "SELECT * FROM {{ pg_test_table }};"
+  become_user: postgres
+  changed_when: false
+  register: pg_healthcheck
+  tags: [provision, verify]
+
+- name: Show the healthcheck table contents
+  ansible.builtin.debug:
+    var: pg_healthcheck.query_result
+  tags: [provision, verify]

@@ -5,3 +5,4 @@ collections:
     version: ">=0.7.1"
   - name: community.proxmox
   - name: community.crypto
+  - name: community.postgresql

@@ -1,5 +1,6 @@
 vault_proxmox_api_password_site1: <site1-api-token-secret>
 vault_proxmox_api_password_site2: <site2-api-token-secret>
+vault_postgresql_app_password: <postgresql-app-password>
 
 # NetBox (s2_mt) — see playbooks/netbox.yaml
 vault_netbox_db_password: <postgres-password-for-netbox-user>
