@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  role_name: firewall
+  description: Configure a pfSense firewall (VLANs, interfaces, rules, DHCP, DNS Resolver, OpenVPN client)
+  author: T-NSA-810-CIA
+  license: MIT
+  min_ansible_version: "2.15"
+collections:
+  - pfsensible.core
+dependencies: []

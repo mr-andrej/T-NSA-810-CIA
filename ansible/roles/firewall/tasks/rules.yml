@@ -1,0 +1,24 @@
+---
+# fw_rules is a single ordered list. Each rule is placed `after` the previous
+# rule on the SAME interface (or at the top when it is the first on that
+# interface), so the final top-to-bottom order matches the list order.
+# This is what makes the OpenVPN block rules land BEFORE the inter-sites allow.
+- name: Configure firewall rules
+  pfsensible.core.pfsense_rule:
+    name: "{{ item.name }}"
+    interface: "{{ item.interface }}"
+    action: "{{ item.action }}"
+    ipprotocol: "{{ item.ipprotocol | default('inet') }}"
+    protocol: "{{ item.protocol | default(omit) }}"
+    source: "{{ item.source }}"
+    source_port: "{{ item.source_port | default(omit) }}"
+    destination: "{{ item.destination }}"
+    destination_port: "{{ item.destination_port | default(omit) }}"
+    disabled: "{{ item.disabled | default(false) }}"
+    log: "{{ item.log | default(omit) }}"
+    after: "{{ 'top' if (idx == 0 or fw_rules[idx - 1].interface != item.interface) else fw_rules[idx - 1].name }}"
+    state: present
+  loop: "{{ fw_rules }}"
+  loop_control:
+    index_var: idx
+    label: "{{ item.interface }} / {{ item.name }}"

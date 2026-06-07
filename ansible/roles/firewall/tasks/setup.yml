@@ -1,0 +1,6 @@
+---
+- name: Set hostname and domain
+  pfsensible.core.pfsense_setup:
+    hostname: "{{ fw_hostname }}"
+    domain: "{{ fw_domain }}"
+  when: fw_hostname | length > 0 and fw_domain | length > 0

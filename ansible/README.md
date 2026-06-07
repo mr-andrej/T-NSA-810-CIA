@@ -17,7 +17,7 @@ Ansible playbooks for managing school infrastructure VMs across two Proxmox VE e
 
 ```bash
 sudo apt install ansible python3-proxmoxer python3-requests
-ansible-galaxy collection install community.proxmox
+ansible-galaxy collection install -r requirements.yml
 ```
 
 ## Inventory
@@ -98,4 +98,17 @@ Configures the MongoDB server on `db_servers` hosts.
 
 ```bash
 ansible-playbook playbooks/db.yaml --ask-vault-pass
+```
+
+### `s1_fw.yaml`
+
+Configures the Site 1 pfSense firewall (`site1_fw`) end to end — VLANs,
+interfaces, least-privilege rules, DHCP, DNS Resolver and (opt-in) the OpenVPN
+site-to-site client — using the `pfsensible.core` collection over SSH. All data
+lives in `inventory/host_vars/s1_fw.yaml`; see `roles/firewall/README.md`.
+
+```bash
+ansible-galaxy collection install -r requirements.yml   # one-time
+ansible-playbook playbooks/s1_fw.yaml --check           # dry run
+ansible-playbook playbooks/s1_fw.yaml                   # apply
 ```

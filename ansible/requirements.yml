@@ -1,0 +1,7 @@
+---
+# Install with: ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: pfsensible.core
+    version: ">=0.7.1"
+  - name: community.proxmox
+  - name: community.crypto
