@@ -26,14 +26,14 @@ Hosts are defined in `inventory/hosts.yaml`. Fill in the SSH details for each VM
 
 ## Vault setup
 
-Secrets are stored encrypted in `group_vars/all/vault.yaml`.
+Secrets are stored encrypted in `inventory/group_vars/all/vault.yaml`.
 
 To set up for the first time:
 
 ```bash
-cp group_vars/all/vault.yaml.example group_vars/all/vault.yaml
-nano group_vars/all/vault.yaml  # fill in real values
-ansible-vault encrypt group_vars/all/vault.yaml
+cp inventory/group_vars/all/vault.yaml.example inventory/group_vars/all/vault.yaml
+nano inventory/group_vars/all/vault.yaml  # fill in real values
+ansible-vault encrypt inventory/group_vars/all/vault.yaml
 ```
 
 `vault.yaml` is in `.gitignore` and must never be committed. Only `vault.yaml.example` is tracked by git.
@@ -41,7 +41,7 @@ ansible-vault encrypt group_vars/all/vault.yaml
 To edit later:
 
 ```bash
-ansible-vault edit group_vars/all/vault.yaml
+ansible-vault edit inventory/group_vars/all/vault.yaml
 ```
 
 ### Vault variables
@@ -50,6 +50,7 @@ ansible-vault edit group_vars/all/vault.yaml
 |---|---|
 | `vault_proxmox_api_password_site1` | API token secret for `GR37@pve!ansible` on site1 |
 | `vault_proxmox_api_password_site2` | API token secret for `GR37@pve!ansible` on site2 |
+| `vault_postgresql_app_password` | Password for the `appuser` PostgreSQL role on s1_db |
 
 ## Proxmox API token
 
@@ -80,8 +81,8 @@ make snap.<action>.<site>.<vm> SNAP=<name>
 
 ```bash
 # Examples
-make snap.create.site1.db  SNAP=pre-mongo
-make snap.restore.site1.db SNAP=pre-mongo
+make snap.create.site1.db  SNAP=pre-postgresql
+make snap.restore.site1.db SNAP=pre-postgresql
 make snap.delete.site2.mt  SNAP=old-snap
 
 # See all targets
@@ -94,10 +95,48 @@ If `SNAP` is omitted on create, the snapshot is named `snapshot-YYYYMMDD-HHMM` a
 
 ### `db.yaml`
 
-Configures the MongoDB server on `db_servers` hosts.
+Installs and configures PostgreSQL on the Site 1 database server (`site1_db`,
+`10.0.20.1`): binds it to the DATABASE VLAN, opens `pg_hba.conf` to the SERVERS
+VLAN (`10.0.10.0/24`, the app server) and the bastion (`192.168.10.0/24`),
+creates the `appdb` database and `appuser` role, and creates a `healthcheck`
+test table that it seeds and reads back to prove the DB works. It also enriches
+PostgreSQL's local logging (`/var/log/postgresql/`) so the VM's log shipper can
+forward records to monitoring. All settings live in
+`roles/postgresql/defaults/main.yml`; the role password comes from the vault
+(`vault_postgresql_app_password`).
 
 ```bash
-ansible-playbook playbooks/db.yaml --ask-vault-pass
+ansible-galaxy collection install -r requirements.yml   # one-time
+
+# Apply. The inventory's ansible_user is `administrator`; override with -e if you
+# log in as a personal account (e.g. over the bastion). Add --ask-become-pass
+# only if your user does NOT have passwordless sudo.
+ansible-playbook playbooks/db.yaml --ask-vault-pass -e ansible_user=<you>
+```
+
+> **Note on `--check`:** a dry run is unreliable for the *first* deploy — the
+> `postgresql_db`/`postgresql_table`/`postgresql_query` tasks error in check mode
+> because they try to inspect a database/table that doesn't exist yet. Those
+> errors are harmless; just run the playbook for real. `--check` is meaningful
+> only once the database already exists.
+
+**Connecting from a client.** The app server (`s1_app`, SERVERS VLAN) connects
+directly to `10.0.20.1:5432` as `appuser`/`appdb`. For admin/dev access from a
+GoLand database tool, connect the OpenVPN, then use GoLand's SSH/SSL tab to
+tunnel through the `bastion` host; the connection target stays
+`jdbc:postgresql://10.0.20.1:5432/appdb`.
+
+### `s1_fw.yaml`
+
+Configures the Site 1 pfSense firewall (`site1_fw`) end to end — VLANs,
+interfaces, least-privilege rules, DHCP, DNS Resolver and (opt-in) the OpenVPN
+site-to-site client — using the `pfsensible.core` collection over SSH. All data
+lives in `inventory/host_vars/s1_fw.yaml`; see `roles/firewall/README.md`.
+
+```bash
+ansible-galaxy collection install -r requirements.yml   # one-time
+ansible-playbook playbooks/s1_fw.yaml --check           # dry run
+ansible-playbook playbooks/s1_fw.yaml                   # apply
 ```
 
 ### `s1_fw.yaml`

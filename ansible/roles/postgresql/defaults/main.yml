@@ -1,0 +1,34 @@
+---
+# PostgreSQL configuration for the Site 1 database server (s1_db, 10.0.20.1).
+
+# Addresses PostgreSQL binds to. localhost for local admin + the DATABASE VLAN
+# IP so SERVERS-VLAN clients (s1_app) and bastion-tunnelled sessions can reach it.
+pg_listen_addresses: "localhost,10.0.20.1"
+
+# Networks allowed to authenticate (pg_hba.conf), all using scram-sha-256.
+#   - 10.0.10.0/24    SERVERS VLAN: the s1_app application server.
+#   - 192.168.10.0/24 bastion (s2_js 192.168.10.10): GoLand reaches the DB via
+#                     an SSH tunnel through the bastion; PostgreSQL sees the
+#                     bastion's source IP.
+pg_allowed_cidrs:
+  - 10.0.10.0/24
+  - 192.168.10.0/24
+
+# Application database, role and the password (kept in the vault).
+pg_db_name: appdb
+pg_app_user: appuser
+pg_app_password: "{{ vault_postgresql_app_password }}"
+
+# Simple table used to prove the database is healthy end to end.
+pg_test_table: healthcheck
+
+# Local logging. Debian's PostgreSQL already writes to
+# /var/log/postgresql/postgresql-<ver>-main.log; these settings just enrich
+# what lands there (timestamps, who connected, checkpoints) so the VM's existing
+# log shipper — the same mechanism s1_app uses — forwards useful records to
+# monitoring. All are SIGHUP-reloadable (no restart needed).
+pg_log_settings:
+  log_line_prefix: "%m [%p] %q%u@%d "
+  log_connections: "on"
+  log_disconnections: "on"
+  log_checkpoints: "on"
