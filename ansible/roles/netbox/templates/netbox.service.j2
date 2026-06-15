@@ -1,0 +1,17 @@
+[Unit]
+Description=NetBox WSGI Service
+Documentation=https://docs.netbox.dev/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=netbox
+Group=netbox
+WorkingDirectory=/opt/netbox
+ExecStart=/opt/netbox/venv/bin/gunicorn --pid /var/tmp/netbox.pid --pythonpath /opt/netbox/netbox --config /opt/netbox/gunicorn.py netbox.wsgi
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
