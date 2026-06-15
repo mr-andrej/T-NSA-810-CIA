@@ -47,3 +47,13 @@
             device: "{{ vm_device }}"
             name: "{{ vm_interface }}"
         state: present
+
+    - name: Set primary IP on device
+      delegate_to: localhost
+      netbox.netbox.netbox_device:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ vm_device }}"
+          primary_ip4: "{{ vm_address }}"
+        state: present
