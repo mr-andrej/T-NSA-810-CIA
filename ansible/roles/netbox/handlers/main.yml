@@ -1,0 +1,16 @@
+- name: Restart NetBox
+  systemd:
+    name: netbox
+    state: restarted
+    daemon_reload: true
+
+- name: Restart NetBox RQ
+  systemd:
+    name: netbox-rq
+    state: restarted
+    daemon_reload: true
+
+- name: Restart Nginx
+  service:
+    name: nginx
+    state: restarted

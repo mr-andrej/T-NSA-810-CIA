@@ -1,0 +1,18 @@
+- name: Deploy NetBox on S2-MT
+  hosts: site2_mt
+  become: true
+  vars_files:
+    - ../group_vars/all/vault.yaml
+  vars:
+    netbox_version: "4.2.9"
+    netbox_db_name: netbox
+    netbox_db_user: netbox
+    netbox_db_password: "{{ vault_netbox_db_password }}"
+    netbox_secret_key: "{{ vault_netbox_secret_key }}"
+    netbox_superuser_password: "{{ vault_netbox_superuser_password }}"
+    netbox_allowed_hosts:
+      - "192.168.20.1"
+      - "ops.site2.internal"
+      - "localhost"
+  roles:
+    - netbox

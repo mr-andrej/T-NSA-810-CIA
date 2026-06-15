@@ -1,0 +1,175 @@
+# ── System dependencies ───────────────────────────────────────────────
+- name: Install system dependencies
+  apt:
+    name:
+      - postgresql
+      - postgresql-contrib
+      - redis-server
+      - python3
+      - python3-pip
+      - python3-venv
+      - python3-dev
+      - python3-psycopg2
+      - build-essential
+      - libxml2-dev
+      - libxslt1-dev
+      - libffi-dev
+      - libpq-dev
+      - libssl-dev
+      - zlib1g-dev
+      - git
+      - nginx
+      - acl
+    state: present
+    update_cache: yes
+
+# ── PostgreSQL ────────────────────────────────────────────────────────
+- name: Ensure PostgreSQL is running
+  service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Create NetBox database user
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ netbox_db_user }}"
+    password: "{{ netbox_db_password }}"
+    state: present
+
+- name: Create NetBox database
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ netbox_db_name }}"
+    owner: "{{ netbox_db_user }}"
+    encoding: UTF-8
+    state: present
+
+- name: Grant privileges to NetBox user
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    database: "{{ netbox_db_name }}"
+    privs: ALL
+    type: database
+    role: "{{ netbox_db_user }}"
+
+# ── Redis ─────────────────────────────────────────────────────────────
+- name: Ensure Redis is running
+  service:
+    name: redis-server
+    state: started
+    enabled: true
+
+# ── NetBox system user ────────────────────────────────────────────────
+- name: Create NetBox system user
+  user:
+    name: netbox
+    system: true
+    home: /opt/netbox
+    shell: /usr/sbin/nologin
+    create_home: false
+
+# ── NetBox sources ────────────────────────────────────────────────────
+- name: Clone NetBox repository
+  git:
+    repo: https://github.com/netbox-community/netbox.git
+    dest: /opt/netbox
+    version: "v{{ netbox_version }}"
+    force: yes
+
+- name: Set ownership on NetBox directory
+  file:
+    path: /opt/netbox
+    owner: netbox
+    group: netbox
+    recurse: yes
+
+- name: Deploy NetBox configuration
+  template:
+    src: configuration.py.j2
+    dest: /opt/netbox/netbox/netbox/configuration.py
+    owner: netbox
+    group: netbox
+    mode: "0640"
+  notify: Restart NetBox
+
+- name: Run NetBox upgrade script
+  command: /opt/netbox/upgrade.sh
+  args:
+    chdir: /opt/netbox
+  changed_when: false
+
+- name: Create NetBox superuser (idempotent)
+  shell: |
+    cd /opt/netbox
+    source venv/bin/activate
+    DJANGO_SUPERUSER_PASSWORD='{{ netbox_superuser_password }}' \
+      python3 netbox/manage.py createsuperuser \
+      --no-input --username admin --email admin@site2.internal 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+# ── Gunicorn ──────────────────────────────────────────────────────────
+- name: Deploy Gunicorn configuration
+  template:
+    src: gunicorn.py.j2
+    dest: /opt/netbox/gunicorn.py
+    owner: netbox
+    group: netbox
+    mode: "0644"
+
+- name: Deploy NetBox systemd service
+  template:
+    src: netbox.service.j2
+    dest: /etc/systemd/system/netbox.service
+    mode: "0644"
+  notify: Restart NetBox
+
+- name: Deploy NetBox RQ worker systemd service
+  template:
+    src: netbox-rq.service.j2
+    dest: /etc/systemd/system/netbox-rq.service
+    mode: "0644"
+  notify: Restart NetBox RQ
+
+- name: Enable and start NetBox
+  systemd:
+    name: netbox
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Enable and start NetBox RQ
+  systemd:
+    name: netbox-rq
+    state: started
+    enabled: true
+    daemon_reload: true
+
+# ── Nginx reverse proxy ───────────────────────────────────────────────
+- name: Deploy Nginx config for NetBox
+  template:
+    src: nginx-netbox.conf.j2
+    dest: /etc/nginx/sites-available/netbox
+    mode: "0644"
+  notify: Restart Nginx
+
+- name: Enable Nginx site
+  file:
+    src: /etc/nginx/sites-available/netbox
+    dest: /etc/nginx/sites-enabled/netbox
+    state: link
+  notify: Restart Nginx
+
+- name: Remove default Nginx site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Restart Nginx
+
+- name: Ensure Nginx is running
+  service:
+    name: nginx
+    state: started
+    enabled: true
