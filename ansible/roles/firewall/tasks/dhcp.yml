@@ -1,0 +1,14 @@
+---
+- name: Configure DHCP servers
+  pfsensible.core.pfsense_dhcp_server:
+    interface: "{{ item.interface }}"
+    enable: "{{ item.enable | default(true) }}"
+    range_from: "{{ item.range_from }}"
+    range_to: "{{ item.range_to }}"
+    gateway: "{{ item.gateway | default(omit) }}"
+    dnsserver: "{{ item.dnsserver | default(omit) }}"
+    domain: "{{ item.domain | default(omit) }}"
+    state: present
+  loop: "{{ fw_dhcp_servers }}"
+  loop_control:
+    label: "{{ item.interface }} ({{ item.range_from }}-{{ item.range_to }})"

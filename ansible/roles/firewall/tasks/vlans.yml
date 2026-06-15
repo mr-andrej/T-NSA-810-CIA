@@ -1,0 +1,10 @@
+---
+- name: Create VLANs
+  pfsensible.core.pfsense_vlan:
+    vlan_id: "{{ item.vlan_id }}"
+    interface: "{{ item.interface | default(fw_lan_parent) }}"
+    descr: "{{ item.descr | default(omit) }}"
+    state: present
+  loop: "{{ fw_vlans }}"
+  loop_control:
+    label: "VLAN {{ item.vlan_id }} ({{ item.descr | default('') }})"

@@ -1,0 +1,15 @@
+---
+# DNS Resolver (Unbound). Forwarding mode stays OFF so Domain Overrides resolve
+# site2.internal through the VPN tunnel rather than via the upstream forwarders.
+- name: Configure DNS Resolver
+  pfsensible.core.pfsense_dns_resolver:
+    state: "{{ fw_dns_resolver.state | default('present') }}"
+    active_interface: "{{ fw_dns_resolver.active_interface | default(omit) }}"
+    outgoing_interface: "{{ fw_dns_resolver.outgoing_interface | default(omit) }}"
+    dnssec: "{{ fw_dns_resolver.dnssec | default(omit) }}"
+    forwarding: "{{ fw_dns_resolver.forwarding | default(false) }}"
+    regdhcp: "{{ fw_dns_resolver.regdhcp | default(omit) }}"
+    regdhcpstatic: "{{ fw_dns_resolver.regdhcpstatic | default(omit) }}"
+    hosts: "{{ fw_dns_resolver.hosts | default(omit) }}"
+    domainoverrides: "{{ fw_dns_resolver.domainoverrides | default(omit) }}"
+  when: fw_dns_resolver | length > 0

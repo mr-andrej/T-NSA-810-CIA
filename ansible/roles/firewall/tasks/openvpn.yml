@@ -1,0 +1,18 @@
+---
+# Opt-in (fw_manage_openvpn_client). The S2S client already exists on S1-FW, and
+# the module needs the existing CA/cert references to manage it safely. Fill those
+# in fw_openvpn_client before enabling, otherwise leave IPv4 Remote Networks set by
+# hand per the runbook. The one field that actually matters here is remote_network.
+- name: Configure OpenVPN site-to-site client
+  pfsensible.core.pfsense_openvpn_client:
+    name: "{{ fw_openvpn_client.name }}"
+    server_addr: "{{ fw_openvpn_client.server_addr | default(omit) }}"
+    server_port: "{{ fw_openvpn_client.server_port | default(omit) }}"
+    protocol: "{{ fw_openvpn_client.protocol | default(omit) }}"
+    dev_mode: "{{ fw_openvpn_client.dev_mode | default(omit) }}"
+    ca: "{{ fw_openvpn_client.ca | default(omit) }}"
+    cert: "{{ fw_openvpn_client.cert | default(omit) }}"
+    tls: "{{ fw_openvpn_client.tls | default(omit) }}"
+    remote_network: "{{ fw_openvpn_client.remote_network | default(omit) }}"
+    custom_options: "{{ fw_openvpn_client.custom_options | default(omit) }}"
+    state: present

@@ -1,0 +1,36 @@
+---
+# Default firewall data model.
+# Everything here is meant to be overridden in host_vars/<host>.yaml.
+# Empty defaults keep the role from failing when a section is not defined.
+
+# System (Services > System / General Setup)
+fw_hostname: ""
+fw_domain: ""
+
+# Physical NIC that carries the tagged LAN VLANs (the trunk).
+# The runbook labels this "vtnet0 (LAN)" — set it to whichever vtnetX is your
+# LAN/trunk port in Interfaces > Assignments. WAN is assumed to be a different NIC.
+fw_lan_parent: vtnet1
+
+# Interfaces > Assignments > VLANs
+fw_vlans: []
+
+# Interfaces > Assignments (OPTx interface config)
+fw_interfaces: []
+
+# Firewall > Aliases
+fw_aliases: []
+
+# Firewall > Rules (flat, ordered list; each item carries its own `interface`)
+fw_rules: []
+
+# Services > DHCP Server
+fw_dhcp_servers: []
+
+# Services > DNS Resolver
+fw_dns_resolver: {}
+
+# VPN > OpenVPN > Clients — automating this needs the existing CA/cert refs,
+# so it is opt-in. Leave false to keep managing the S2S client by hand.
+fw_manage_openvpn_client: false
+fw_openvpn_client: {}

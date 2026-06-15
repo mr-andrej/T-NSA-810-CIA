@@ -1,0 +1,16 @@
+---
+# Assigns each VLAN sub-interface (e.g. vtnet1.10) to an OPTx slot and gives it
+# a static IPv4 address. `descr` becomes the friendly name used everywhere else
+# (firewall rules, DHCP) — e.g. SERVERS, DATABASE.
+- name: Assign and configure interfaces
+  pfsensible.core.pfsense_interface:
+    interface: "{{ item.interface }}"
+    descr: "{{ item.descr }}"
+    enable: "{{ item.enable | default(true) }}"
+    ipv4_type: "{{ item.ipv4_type | default('static') }}"
+    ipv4_address: "{{ item.ipv4_address | default(omit) }}"
+    ipv4_prefixlen: "{{ item.ipv4_prefixlen | default(omit) }}"
+    state: present
+  loop: "{{ fw_interfaces }}"
+  loop_control:
+    label: "{{ item.descr }} ({{ item.interface }})"

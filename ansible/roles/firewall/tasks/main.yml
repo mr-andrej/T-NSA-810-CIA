@@ -1,0 +1,37 @@
+---
+# Order matters: VLANs before interfaces, interfaces before DHCP,
+# aliases before rules. Each section is tagged so you can run a slice with
+# e.g. `--tags rules` or skip one with `--skip-tags openvpn`.
+
+- name: System / general setup
+  import_tasks: setup.yml
+  tags: [setup]
+
+- name: VLANs
+  import_tasks: vlans.yml
+  tags: [vlans, interfaces]
+
+- name: Interface assignments
+  import_tasks: interfaces.yml
+  tags: [interfaces]
+
+- name: Firewall aliases
+  import_tasks: aliases.yml
+  tags: [aliases, rules]
+
+- name: DHCP servers
+  import_tasks: dhcp.yml
+  tags: [dhcp]
+
+- name: DNS Resolver
+  import_tasks: dns.yml
+  tags: [dns]
+
+- name: Firewall rules
+  import_tasks: rules.yml
+  tags: [rules]
+
+- name: OpenVPN client (opt-in)
+  import_tasks: openvpn.yml
+  when: fw_manage_openvpn_client | bool
+  tags: [openvpn]
