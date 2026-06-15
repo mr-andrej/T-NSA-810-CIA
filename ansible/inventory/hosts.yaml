@@ -18,8 +18,7 @@ all:
         site1_fw:
           hosts:
             s1_fw:
-              ansible_host: # TODO: fill in VM IP
-              ansible_user: # TODO: fill in SSH user
+              # Connection + full pfSense config: inventory/host_vars/s1_fw.yaml
               proxmox_vmid: 105
               proxmox_node: vm002
         site1_db:

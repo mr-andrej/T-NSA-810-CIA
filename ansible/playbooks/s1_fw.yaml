@@ -1,0 +1,18 @@
+---
+# Configure the Site 1 pfSense firewall (S1-FW).
+#
+# Prereqs:
+#   ansible-galaxy collection install -r ../requirements.yml
+#   SSH enabled on pfSense (System > Advanced > Admin Access > Secure Shell)
+#
+# Run:
+#   ansible-playbook playbooks/s1_fw.yaml
+#   ansible-playbook playbooks/s1_fw.yaml --check          # dry run
+#   ansible-playbook playbooks/s1_fw.yaml --tags rules     # one section only
+#
+# All host/firewall data lives in host_vars/s1_fw.yaml.
+- name: Configure Site 1 firewall (pfSense)
+  hosts: site1_fw
+  gather_facts: false
+  roles:
+    - firewall

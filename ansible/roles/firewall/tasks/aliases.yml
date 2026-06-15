@@ -1,0 +1,11 @@
+---
+- name: Create firewall aliases
+  pfsensible.core.pfsense_alias:
+    name: "{{ item.name }}"
+    type: "{{ item.type }}"
+    address: "{{ item.address }}"
+    descr: "{{ item.descr | default(omit) }}"
+    state: present
+  loop: "{{ fw_aliases }}"
+  loop_control:
+    label: "{{ item.name }}"
