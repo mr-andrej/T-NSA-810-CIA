@@ -1,0 +1,219 @@
+---
+- name: Populate NetBox with infrastructure data
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    netbox_url: "http://192.168.20.1"
+    netbox_token: "API TOKEN"
+
+  tasks:
+    # ── Sites ──
+    - name: Create sites
+      netbox.netbox.netbox_site:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ item.name }}"
+          slug: "{{ item.slug }}"
+          status: active
+          description: "{{ item.description }}"
+        state: present
+      loop:
+        - {
+            name: "Site 1 - Internal",
+            slug: "site1",
+            description: "On-premise internal network (5.196.50.51)",
+          }
+        - {
+            name: "Site 2 - Cloud",
+            slug: "site2",
+            description: "Remote cloud site (5.196.45.7)",
+          }
+
+    # ── VLANs ──
+    - name: Create VLANs
+      netbox.netbox.netbox_vlan:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ item.name }}"
+          vid: "{{ item.vid }}"
+          site: "{{ item.site }}"
+          status: active
+        state: present
+      loop:
+        - { name: "Servers", vid: 10, site: "site1" }
+        - { name: "Database", vid: 20, site: "site1" }
+        - { name: "DMZ", vid: 10, site: "site2" }
+        - { name: "Monitoring", vid: 20, site: "site2" }
+
+    # ── Prefixes ──
+    - name: Create prefixes
+      netbox.netbox.netbox_prefix:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          prefix: "{{ item.prefix }}"
+          vlan: "{{ item.vlan | default(omit) }}"
+          status: active
+          description: "{{ item.description }}"
+        state: present
+      loop:
+        - { prefix: "10.0.1.0/24", site: "site1", description: "Site 1 LAN" }
+        - {
+            prefix: "10.0.10.0/24",
+            site: "site1",
+            vlan: { name: "Servers", site: "site1" },
+            description: "Site 1 VLAN Servers",
+          }
+        - {
+            prefix: "10.0.20.0/24",
+            site: "site1",
+            vlan: { name: "Database", site: "site1" },
+            description: "Site 1 VLAN Database",
+          }
+        - { prefix: "192.168.1.0/24", site: "site2", description: "Site 2 LAN" }
+        - {
+            prefix: "192.168.10.0/24",
+            site: "site2",
+            vlan: { name: "DMZ", site: "site2" },
+            description: "Site 2 VLAN DMZ",
+          }
+        - {
+            prefix: "192.168.20.0/24",
+            site: "site2",
+            vlan: { name: "Monitoring", site: "site2" },
+            description: "Site 2 VLAN Monitoring",
+          }
+        - {
+            prefix: "192.168.100.0/24",
+            site: "site2",
+            description: "Admin VPN clients",
+          }
+        - { prefix: "172.16.0.0/30", description: "Site-to-site VPN tunnel" }
+
+    # ── Device roles ──
+    - name: Create device roles
+      netbox.netbox.netbox_device_role:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ item.name }}"
+          slug: "{{ item.slug }}"
+          color: "{{ item.color }}"
+        state: present
+      loop:
+        - { name: "Firewall", slug: "firewall", color: "f44336" }
+        - { name: "Server", slug: "server", color: "2196f3" }
+
+    # ── Manufacturer & device type ──
+    - name: Create manufacturer
+      netbox.netbox.netbox_manufacturer:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "Generic"
+          slug: "generic"
+        state: present
+
+    - name: Create device type
+      netbox.netbox.netbox_device_type:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          manufacturer: "Generic"
+          model: "Virtual Machine"
+          slug: "virtual-machine"
+        state: present
+
+    # ── Devices ──
+    - name: Create devices
+      netbox.netbox.netbox_device:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ item.name }}"
+          device_type: "Virtual Machine"
+          device_role: "{{ item.device_role }}"
+          site: "{{ item.site }}"
+          status: active
+        state: present
+      loop:
+        - { name: "S1-FW", device_role: "Firewall", site: "site1" }
+        - { name: "S1-APP", device_role: "Server", site: "site1" }
+        - { name: "S1-DB", device_role: "Server", site: "site1" }
+        - { name: "S2-FW", device_role: "Firewall", site: "site2" }
+        - { name: "S2-JS", device_role: "Server", site: "site2" }
+        - { name: "S2-MT", device_role: "Server", site: "site2" }
+
+    # ── Interfaces ──
+    - name: Create interfaces
+      netbox.netbox.netbox_device_interface:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          device: "{{ item.device }}"
+          name: "{{ item.name }}"
+          type: virtual
+        state: present
+      loop:
+        - { device: "S1-FW", name: "lan" }
+        - { device: "S1-FW", name: "vlan10" }
+        - { device: "S1-FW", name: "vlan20" }
+        - { device: "S1-FW", name: "tunnel" }
+        - { device: "S1-FW", name: "wan" }
+        - { device: "S1-APP", name: "eth0" }
+        - { device: "S1-DB", name: "eth0" }
+        - { device: "S2-FW", name: "lan" }
+        - { device: "S2-FW", name: "vlan10" }
+        - { device: "S2-FW", name: "vlan20" }
+        - { device: "S2-FW", name: "tunnel" }
+        - { device: "S2-FW", name: "wan" }
+        - { device: "S2-JS", name: "eth0" }
+        - { device: "S2-MT", name: "eth0" }
+
+    # ── IP addresses ──
+    - name: Create and assign IP addresses
+      netbox.netbox.netbox_ip_address:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          address: "{{ item.address }}"
+          status: active
+          assigned_object:
+            device: "{{ item.device }}"
+            name: "{{ item.interface }}"
+        state: present
+      loop:
+        - { device: "S1-FW", interface: "lan", address: "10.0.1.254/24" }
+        - { device: "S1-FW", interface: "vlan10", address: "10.0.10.254/24" }
+        - { device: "S1-FW", interface: "vlan20", address: "10.0.20.254/24" }
+        - { device: "S1-FW", interface: "tunnel", address: "172.16.0.2/30" }
+        - { device: "S1-FW", interface: "wan", address: "5.196.50.51/32" }
+        - { device: "S1-APP", interface: "eth0", address: "10.0.10.1/24" }
+        - { device: "S1-DB", interface: "eth0", address: "10.0.20.1/24" }
+        - { device: "S2-FW", interface: "lan", address: "192.168.1.254/24" }
+        - { device: "S2-FW", interface: "vlan10", address: "192.168.10.1/24" }
+        - { device: "S2-FW", interface: "vlan20", address: "192.168.20.254/24" }
+        - { device: "S2-FW", interface: "tunnel", address: "172.16.0.1/30" }
+        - { device: "S2-FW", interface: "wan", address: "5.196.45.7/32" }
+        - { device: "S2-JS", interface: "eth0", address: "192.168.10.10/24" }
+        - { device: "S2-MT", interface: "eth0", address: "192.168.20.1/24" }
+
+    # ── Primary IPs ──
+    - name: Set primary IPs on devices
+      netbox.netbox.netbox_device:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          name: "{{ item.device }}"
+          primary_ip4: "{{ item.address }}"
+        state: present
+      loop:
+        - { device: "S1-FW", address: "10.0.1.254/24" }
+        - { device: "S1-APP", address: "10.0.10.1/24" }
+        - { device: "S1-DB", address: "10.0.20.1/24" }
+        - { device: "S2-FW", address: "192.168.1.254/24" }
+        - { device: "S2-JS", address: "192.168.10.10/24" }
+        - { device: "S2-MT", address: "192.168.20.1/24" }
