@@ -1,0 +1,49 @@
+---
+# ── Phase 1: collect + push per VM ──
+- name: Sync real IPs from VMs to NetBox
+  hosts: site1_app:site1_db:s2_js:site2_mt
+  gather_facts: true
+  become: false
+  vars:
+    netbox_url: "http://192.168.20.1"
+    netbox_token: "16595d47c51fd81528d5c314d1689b60c777405e"
+    device_map:
+      s1_app: "S1-APP"
+      s1_db: "S1-DB"
+      s2_js: "S2-JS"
+      s2_mt: "S2-MT"
+  tasks:
+    - name: Extract primary interface and IP
+      set_fact:
+        vm_device: "{{ device_map[inventory_hostname] }}"
+        vm_interface: "{{ ansible_facts['default_ipv4']['interface'] }}"
+        vm_address: "{{ ansible_facts['default_ipv4']['address'] }}/{{ ansible_facts['default_ipv4']['prefix'] }}"
+
+    - name: Show what will be synced
+      debug:
+        msg: "{{ vm_device }} → {{ vm_interface }} → {{ vm_address }}"
+
+    - name: Ensure interface exists in NetBox
+      delegate_to: localhost
+      netbox.netbox.netbox_device_interface:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          device: "{{ vm_device }}"
+          name: "{{ vm_interface }}"
+          type: virtual
+        state: present
+
+    - name: Sync real IP to NetBox
+      delegate_to: localhost
+      netbox.netbox.netbox_ip_address:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          address: "{{ vm_address }}"
+          status: active
+          description: "Auto-synced from real infrastructure"
+          assigned_object:
+            device: "{{ vm_device }}"
+            name: "{{ vm_interface }}"
+        state: present

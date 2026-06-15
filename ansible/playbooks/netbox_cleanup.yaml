@@ -1,0 +1,22 @@
+---
+- name: Cleanup fictive interfaces before sync
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    netbox_url: "http://192.168.20.1"
+    netbox_token: "16595d47c51fd81528d5c314d1689b60c777405e"
+  tasks:
+    - name: Remove fictive eth0 interfaces on synced VMs
+      netbox.netbox.netbox_device_interface:
+        netbox_url: "{{ netbox_url }}"
+        netbox_token: "{{ netbox_token }}"
+        data:
+          device: "{{ item }}"
+          name: "eth0"
+        state: absent
+      loop:
+        - "S1-APP"
+        - "S1-DB"
+        - "S2-JS"
+        - "S2-MT"

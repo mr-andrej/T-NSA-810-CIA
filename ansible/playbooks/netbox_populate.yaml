@@ -5,7 +5,7 @@
   gather_facts: false
   vars:
     netbox_url: "http://192.168.20.1"
-    netbox_token: "API TOKEN"
+    netbox_token: "16595d47c51fd81528d5c314d1689b60c777405e"
 
   tasks:
     # ── Sites ──
