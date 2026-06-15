@@ -138,16 +138,3 @@ ansible-galaxy collection install -r requirements.yml   # one-time
 ansible-playbook playbooks/s1_fw.yaml --check           # dry run
 ansible-playbook playbooks/s1_fw.yaml                   # apply
 ```
-
-### `s1_fw.yaml`
-
-Configures the Site 1 pfSense firewall (`site1_fw`) end to end — VLANs,
-interfaces, least-privilege rules, DHCP, DNS Resolver and (opt-in) the OpenVPN
-site-to-site client — using the `pfsensible.core` collection over SSH. All data
-lives in `inventory/host_vars/s1_fw.yaml`; see `roles/firewall/README.md`.
-
-```bash
-ansible-galaxy collection install -r requirements.yml   # one-time
-ansible-playbook playbooks/s1_fw.yaml --check           # dry run
-ansible-playbook playbooks/s1_fw.yaml                   # apply
-```
