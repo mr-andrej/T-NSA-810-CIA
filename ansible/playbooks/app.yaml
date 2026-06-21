@@ -1,5 +1,5 @@
-- name: Configure PostgreSQL on the database server
-  hosts: site1_db
+- name: Deploy the visit-log web app on the Site 1 app server
+  hosts: site1_app
   become: true
 
   pre_tasks:
@@ -13,9 +13,9 @@
       delegate_to: localhost
       run_once: true
       ansible.builtin.set_fact:
-        pg_app_password: "{{ _vault_pg_app.data.data.password }}"
+        webapp_db_password: "{{ _vault_pg_app.data.data.password }}"
       vars:
         _vault_pg_app: "{{ lookup('community.hashi_vault.vault_kv2_get', 'infra/postgresql/app', url=vault_addr, ca_cert=vault_ca_cert, token=vault_token) }}"
 
   roles:
-    - role: postgresql
+    - webapp

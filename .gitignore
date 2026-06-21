@@ -30,6 +30,9 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
+#JetBrains
+.idea
+
 # HashiCorp Vault — anything matching the following must never reach the repo
 *.vault-token
 vault-init-keys.txt

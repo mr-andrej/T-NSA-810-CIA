@@ -26,6 +26,7 @@ all:
             s1_db:
               ansible_host: 10.0.20.1
               ansible_user: administrator
+              ansible_ssh_private_key_file: ~/.ssh/id_ed25519_NSA
               ansible_ssh_common_args: "-o ProxyJump=bastion -o IdentitiesOnly=yes"
               proxmox_vmid: 2037
               proxmox_node: vm002
@@ -34,6 +35,7 @@ all:
             s1_app:
               ansible_host: 10.0.10.1
               ansible_user: administrator
+              ansible_ssh_private_key_file: ~/.ssh/id_ed25519_NSA
               ansible_ssh_common_args: "-o ProxyJump=bastion -o IdentitiesOnly=yes"
               proxmox_vmid: 3037
               proxmox_node: vm002

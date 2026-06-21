@@ -1,0 +1,112 @@
+---
+# ── System dependencies ───────────────────────────────────────────────
+- name: Install build and runtime dependencies
+  ansible.builtin.apt:
+    name:
+      - golang-go
+      - git
+      - ca-certificates
+    state: present
+    update_cache: true
+
+# ── Service user and layout ────────────────────────────────────────────
+- name: Create the visitapp system user
+  ansible.builtin.user:
+    name: "{{ webapp_user }}"
+    system: true
+    home: "{{ webapp_home }}"
+    shell: /usr/sbin/nologin
+    create_home: true
+
+- name: Ensure the source directory exists
+  ansible.builtin.file:
+    path: "{{ webapp_src }}"
+    state: directory
+    owner: "{{ webapp_user }}"
+    group: "{{ webapp_user }}"
+    mode: "0755"
+
+# ── Application sources ────────────────────────────────────────────────
+- name: Copy Go sources
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ webapp_src }}/{{ item }}"
+    owner: "{{ webapp_user }}"
+    group: "{{ webapp_user }}"
+    mode: "0644"
+  loop:
+    - main.go
+    - go.mod
+    - go.sum
+  register: webapp_src_copy
+
+- name: Check whether the binary already exists
+  ansible.builtin.stat:
+    path: "{{ webapp_bin }}"
+  register: webapp_bin_stat
+
+# ── Build ──────────────────────────────────────────────────────────────
+# Build as the service user with caches under its home. GOTOOLCHAIN=local
+# pins to the host's Go (go.mod targets 1.22, matching Ubuntu 24.04's
+# golang-go) so no toolchain is downloaded; go mod download still needs the
+# module proxy, which s1_app can reach over HTTPS.
+- name: Build the visitapp binary
+  ansible.builtin.command:
+    cmd: go build -o {{ webapp_bin }} .
+    chdir: "{{ webapp_src }}"
+  become_user: "{{ webapp_user }}"
+  environment:
+    GOCACHE: "{{ webapp_home }}/.cache/go-build"
+    GOMODCACHE: "{{ webapp_home }}/go/pkg/mod"
+    GOTOOLCHAIN: local
+    GOFLAGS: "-mod=mod"
+  register: webapp_build
+  changed_when: webapp_build.rc == 0
+  when: webapp_src_copy.changed or not webapp_bin_stat.stat.exists
+  notify: Restart visitapp
+
+# ── systemd service ────────────────────────────────────────────────────
+- name: Deploy the visitapp environment file
+  ansible.builtin.template:
+    src: visitapp.env.j2
+    dest: "/etc/{{ webapp_name }}.env"
+    owner: "{{ webapp_user }}"
+    group: "{{ webapp_user }}"
+    mode: "0600"
+  no_log: true
+  notify: Restart visitapp
+
+- name: Deploy the visitapp systemd unit
+  ansible.builtin.template:
+    src: visitapp.service.j2
+    dest: "/etc/systemd/system/{{ webapp_name }}.service"
+    mode: "0644"
+  notify: Restart visitapp
+
+- name: Enable and start visitapp
+  ansible.builtin.systemd:
+    name: "{{ webapp_name }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+
+# Apply pending restarts before verifying.
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
+
+# ── Verification ───────────────────────────────────────────────────────
+- name: Verify the service answers on /healthz
+  ansible.builtin.uri:
+    url: http://127.0.0.1{{ webapp_listen if webapp_listen.startswith(':') else ':80' }}/healthz
+    return_content: true
+    status_code: 200
+  register: webapp_health
+  retries: 5
+  delay: 2
+  until: webapp_health.status == 200
+  tags: verify
+
+- name: Show health check result
+  ansible.builtin.debug:
+    msg: "visitapp /healthz returned {{ webapp_health.status }}: {{ webapp_health.content | trim }}"
+  tags: verify

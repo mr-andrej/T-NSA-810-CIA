@@ -1,0 +1,26 @@
+---
+# visitapp — a small Go visit-log web service on the Site 1 app server (s1_app,
+# 10.0.10.1, SERVERS VLAN), reachable VPN-only at http://app.site1.internal/.
+
+# Service identity and layout.
+webapp_name: visitapp
+webapp_user: visitapp
+webapp_home: /opt/visitapp
+webapp_bin: "{{ webapp_home }}/visitapp"
+webapp_src: "{{ webapp_home }}/src"
+
+# Address the service listens on. ":80" needs CAP_NET_BIND_SERVICE (granted in
+# the systemd unit) so the non-root visitapp user can bind a privileged port.
+webapp_listen: ":80"
+
+# Database connection. Reuses the appdb/appuser created by the postgresql role
+# on s1_db (DATABASE VLAN). The password is fetched from HashiCorp Vault
+# (secret/infra/postgresql/app) by playbooks/app.yaml and injected as
+# webapp_db_password — the same secret the postgresql role provisions from.
+webapp_db_host: 10.0.20.1
+webapp_db_port: 5432
+webapp_db_name: appdb
+webapp_db_user: appuser
+# sslmode=disable: traffic stays on the internal VLANs; PostgreSQL is not
+# configured for TLS. Tighten here if server certs are added later.
+webapp_db_url: "postgres://{{ webapp_db_user }}:{{ webapp_db_password }}@{{ webapp_db_host }}:{{ webapp_db_port }}/{{ webapp_db_name }}?sslmode=disable"

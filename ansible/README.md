@@ -26,14 +26,14 @@ Hosts are defined in `inventory/hosts.yaml`. Fill in the SSH details for each VM
 
 ## Vault setup
 
-Secrets are stored encrypted in `group_vars/all/vault.yaml`.
+Secrets are stored encrypted in `inventory/group_vars/all/vault.yaml`.
 
 To set up for the first time:
 
 ```bash
-cp group_vars/all/vault.yaml.example group_vars/all/vault.yaml
-nano group_vars/all/vault.yaml  # fill in real values
-ansible-vault encrypt group_vars/all/vault.yaml
+cp inventory/group_vars/all/vault.yaml.example inventory/group_vars/all/vault.yaml
+nano inventory/group_vars/all/vault.yaml  # fill in real values
+ansible-vault encrypt inventory/group_vars/all/vault.yaml
 ```
 
 `vault.yaml` is in `.gitignore` and must never be committed. Only `vault.yaml.example` is tracked by git.
@@ -41,7 +41,7 @@ ansible-vault encrypt group_vars/all/vault.yaml
 To edit later:
 
 ```bash
-ansible-vault edit group_vars/all/vault.yaml
+ansible-vault edit inventory/group_vars/all/vault.yaml
 ```
 
 ### Vault variables
@@ -80,8 +80,8 @@ make snap.<action>.<site>.<vm> SNAP=<name>
 
 ```bash
 # Examples
-make snap.create.site1.db  SNAP=pre-mongo
-make snap.restore.site1.db SNAP=pre-mongo
+make snap.create.site1.db  SNAP=pre-postgresql
+make snap.restore.site1.db SNAP=pre-postgresql
 make snap.delete.site2.mt  SNAP=old-snap
 
 # See all targets
@@ -94,11 +94,76 @@ If `SNAP` is omitted on create, the snapshot is named `snapshot-YYYYMMDD-HHMM` a
 
 ### `db.yaml`
 
-Configures the MongoDB server on `db_servers` hosts.
+Installs and configures PostgreSQL on the Site 1 database server (`site1_db`,
+`10.0.20.1`): binds it to the DATABASE VLAN, opens `pg_hba.conf` to the SERVERS
+VLAN (`10.0.10.0/24`, the app server) and the bastion (`192.168.10.0/24`),
+creates the `appdb` database and `appuser` role, and creates a `healthcheck`
+test table that it seeds and reads back to prove the DB works. It also enriches
+PostgreSQL's local logging (`/var/log/postgresql/`) so the VM's log shipper can
+forward records to monitoring. All settings live in
+`roles/postgresql/defaults/main.yml`; the `appuser` password is fetched at
+runtime from HashiCorp Vault (`secret/infra/postgresql/app`, key `password`) by
+the playbook's `vault_login` pre-task — see `docs/secret-management/`.
 
 ```bash
-ansible-playbook playbooks/db.yaml --ask-vault-pass
+ansible-galaxy collection install -r requirements.yml   # one-time
+
+# Requires the Vault AppRole secret_id at ~/.ansible/vault-secret-id and the
+# Vault CA at ~/.ansible/vault-ca.crt (see docs/secret-management/bootstrap.md).
+# The inventory's ansible_user is `administrator`; override with -e if you log
+# in as a personal account (e.g. over the bastion). Add --ask-become-pass only
+# if your user does NOT have passwordless sudo.
+ansible-playbook playbooks/db.yaml -e ansible_user=<you>
 ```
+
+> **Note on `--check`:** a dry run is unreliable for the *first* deploy — the
+> `postgresql_db`/`postgresql_table`/`postgresql_query` tasks error in check mode
+> because they try to inspect a database/table that doesn't exist yet. Those
+> errors are harmless; just run the playbook for real. `--check` is meaningful
+> only once the database already exists.
+
+**Connecting from a client.** The app server (`s1_app`, SERVERS VLAN) connects
+directly to `10.0.20.1:5432` as `appuser`/`appdb`. For admin/dev access from a
+GoLand database tool, connect the OpenVPN, then use GoLand's SSH/SSL tab to
+tunnel through the `bastion` host; the connection target stays
+`jdbc:postgresql://10.0.20.1:5432/appdb`.
+
+### `app.yaml`
+
+Deploys **visitapp**, a small Go visit-log web service, on the Site 1 app
+server (`site1_app`, `10.0.10.1`). It is a single static binary run by systemd
+as the unprivileged `visitapp` user (binding `:80` via
+`CAP_NET_BIND_SERVICE`). Each request to `/` records the caller's IP and
+User-Agent in a `visits` table in `appdb` and shows the caller's IP, the total
+visit count and the most recent visits; `/healthz` pings the database and the
+deploy asserts it returns `200`.
+
+The app reuses the existing `appdb`/`appuser` and reads the **same** Vault
+secret as `db.yaml` (`secret/infra/postgresql/app`) — no new database or
+credential. The role installs `golang-go`, copies the sources from
+`roles/webapp/files/` and builds the binary on the host (the module targets Go
+1.22 to match Ubuntu 24.04's `golang-go`, so no toolchain download is needed;
+`go mod download` does need the app server's HTTPS egress).
+
+```bash
+ansible-galaxy collection install -r requirements.yml   # one-time
+
+# First time only: authorize this laptop's key on the app server (same two-key
+# bastion model as s1_db), so Ansible's ProxyJump final hop is accepted.
+cat ~/.ssh/id_ed25519_NSA.pub | ssh bastion 'ssh s1-app "cat >> ~/.ssh/authorized_keys"'
+
+# Apply. Reads secret/infra/postgresql/app from Vault (needs the AppRole
+# secret_id at ~/.ansible/vault-secret-id). Override ansible_user with -e if you
+# log in as a personal account.
+ansible-playbook playbooks/app.yaml -e ansible_user=<you>
+```
+
+**Access.** The app is reachable **only over the VPN**. `app.site1.internal`
+resolves to `10.0.10.1` via the Site 1 firewall's DNS resolver, the SERVERS
+VLAN is already permitted to the DB, and the inter-sites OpenVPN rule lets VPN
+clients reach `10.0.10.1:80` while the WAN is blocked — so no firewall change
+is needed. Visit `http://app.site1.internal/` (or `http://10.0.10.1/` if your
+VPN client does not resolve `site1.internal`).
 
 ### `s1_fw.yaml`
 
