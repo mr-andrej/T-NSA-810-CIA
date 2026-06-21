@@ -14,10 +14,11 @@ pg_allowed_cidrs:
   - 10.0.10.0/24
   - 192.168.10.0/24
 
-# Application database, role and the password (kept in the vault).
+# Application database and role. The password is fetched from HashiCorp Vault
+# (secret/infra/postgresql/app) by playbooks/db.yaml and injected as
+# pg_app_password.
 pg_db_name: appdb
 pg_app_user: appuser
-pg_app_password: "{{ vault_postgresql_app_password }}"
 
 # Simple table used to prove the database is healthy end to end.
 pg_test_table: healthcheck

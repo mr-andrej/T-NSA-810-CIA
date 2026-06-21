@@ -50,7 +50,6 @@ ansible-vault edit inventory/group_vars/all/vault.yaml
 |---|---|
 | `vault_proxmox_api_password_site1` | API token secret for `GR37@pve!ansible` on site1 |
 | `vault_proxmox_api_password_site2` | API token secret for `GR37@pve!ansible` on site2 |
-| `vault_postgresql_app_password` | Password for the `appuser` PostgreSQL role on s1_db |
 
 ## Proxmox API token
 
@@ -102,16 +101,19 @@ creates the `appdb` database and `appuser` role, and creates a `healthcheck`
 test table that it seeds and reads back to prove the DB works. It also enriches
 PostgreSQL's local logging (`/var/log/postgresql/`) so the VM's log shipper can
 forward records to monitoring. All settings live in
-`roles/postgresql/defaults/main.yml`; the role password comes from the vault
-(`vault_postgresql_app_password`).
+`roles/postgresql/defaults/main.yml`; the `appuser` password is fetched at
+runtime from HashiCorp Vault (`secret/infra/postgresql/app`, key `password`) by
+the playbook's `vault_login` pre-task — see `docs/secret-management/`.
 
 ```bash
 ansible-galaxy collection install -r requirements.yml   # one-time
 
-# Apply. The inventory's ansible_user is `administrator`; override with -e if you
-# log in as a personal account (e.g. over the bastion). Add --ask-become-pass
-# only if your user does NOT have passwordless sudo.
-ansible-playbook playbooks/db.yaml --ask-vault-pass -e ansible_user=<you>
+# Requires the Vault AppRole secret_id at ~/.ansible/vault-secret-id and the
+# Vault CA at ~/.ansible/vault-ca.crt (see docs/secret-management/bootstrap.md).
+# The inventory's ansible_user is `administrator`; override with -e if you log
+# in as a personal account (e.g. over the bastion). Add --ask-become-pass only
+# if your user does NOT have passwordless sudo.
+ansible-playbook playbooks/db.yaml -e ansible_user=<you>
 ```
 
 > **Note on `--check`:** a dry run is unreliable for the *first* deploy — the
@@ -136,8 +138,8 @@ User-Agent in a `visits` table in `appdb` and shows the caller's IP, the total
 visit count and the most recent visits; `/healthz` pings the database and the
 deploy asserts it returns `200`.
 
-The app reuses the existing `appdb`/`appuser` and the **same** vault secret
-(`vault_postgresql_app_password`) created by `db.yaml` — no new database or
+The app reuses the existing `appdb`/`appuser` and reads the **same** Vault
+secret as `db.yaml` (`secret/infra/postgresql/app`) — no new database or
 credential. The role installs `golang-go`, copies the sources from
 `roles/webapp/files/` and builds the binary on the host (the module targets Go
 1.22 to match Ubuntu 24.04's `golang-go`, so no toolchain download is needed;
@@ -150,8 +152,10 @@ ansible-galaxy collection install -r requirements.yml   # one-time
 # bastion model as s1_db), so Ansible's ProxyJump final hop is accepted.
 cat ~/.ssh/id_ed25519_NSA.pub | ssh bastion 'ssh s1-app "cat >> ~/.ssh/authorized_keys"'
 
-# Apply. Override ansible_user with -e if you log in as a personal account.
-ansible-playbook playbooks/app.yaml --ask-vault-pass -e ansible_user=<you>
+# Apply. Reads secret/infra/postgresql/app from Vault (needs the AppRole
+# secret_id at ~/.ansible/vault-secret-id). Override ansible_user with -e if you
+# log in as a personal account.
+ansible-playbook playbooks/app.yaml -e ansible_user=<you>
 ```
 
 **Access.** The app is reachable **only over the VPN**. `app.site1.internal`

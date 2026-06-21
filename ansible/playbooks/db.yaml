@@ -2,5 +2,20 @@
   hosts: site1_db
   become: true
 
+  pre_tasks:
+    # Vault auth + lookup run on the controller (localhost); they never need
+    # root, so override the play's become to avoid a local sudo prompt.
+    - import_tasks: tasks/vault_login.yml
+      become: false
+
+    - name: Fetch the PostgreSQL app password from Vault
+      become: false
+      delegate_to: localhost
+      run_once: true
+      ansible.builtin.set_fact:
+        pg_app_password: "{{ _vault_pg_app.data.data.password }}"
+      vars:
+        _vault_pg_app: "{{ lookup('community.hashi_vault.vault_kv2_get', 'infra/postgresql/app', url=vault_addr, ca_cert=vault_ca_cert, token=vault_token) }}"
+
   roles:
     - role: postgresql

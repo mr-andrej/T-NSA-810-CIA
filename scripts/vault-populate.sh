@@ -106,6 +106,11 @@ put netbox/django    "secret_key=${NETBOX_DJANGO_SECRET_KEY:?}"
 put netbox/superuser "password=${NETBOX_SUPERUSER_PASSWORD:?}"
 put netbox/api       "token=${NETBOX_API_TOKEN:?NETBOX_API_TOKEN required (rotated value, not the old 16595d4...)}"
 
+# ── PostgreSQL app DB (appdb/appuser on s1_db; read by db.yaml + app.yaml) ───
+put infra/postgresql/app \
+    "username=appuser" \
+    "password=${POSTGRESQL_APP_PASSWORD:?}"
+
 # ── VPN (OpenVPN site-to-site) ─────────────────────────────────────────────
 if [ -n "${VPN_SITE2_CA_FILE:-}" ] && [ -f "${VPN_SITE2_CA_FILE}" ]; then
     vault kv put secret/vpn/site2-ca \

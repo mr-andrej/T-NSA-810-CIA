@@ -14,12 +14,13 @@ webapp_src: "{{ webapp_home }}/src"
 webapp_listen: ":80"
 
 # Database connection. Reuses the appdb/appuser created by the postgresql role
-# on s1_db (DATABASE VLAN) and the SAME vault secret — no new credential.
+# on s1_db (DATABASE VLAN). The password is fetched from HashiCorp Vault
+# (secret/infra/postgresql/app) by playbooks/app.yaml and injected as
+# webapp_db_password — the same secret the postgresql role provisions from.
 webapp_db_host: 10.0.20.1
 webapp_db_port: 5432
 webapp_db_name: appdb
 webapp_db_user: appuser
-webapp_db_password: "{{ vault_postgresql_app_password }}"
 # sslmode=disable: traffic stays on the internal VLANs; PostgreSQL is not
 # configured for TLS. Tighten here if server certs are added later.
 webapp_db_url: "postgres://{{ webapp_db_user }}:{{ webapp_db_password }}@{{ webapp_db_host }}:{{ webapp_db_port }}/{{ webapp_db_name }}?sslmode=disable"
