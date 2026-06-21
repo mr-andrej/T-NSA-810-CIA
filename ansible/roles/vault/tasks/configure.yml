@@ -1,0 +1,17 @@
+---
+- name: Deploy vault.hcl
+  ansible.builtin.template:
+    src: vault.hcl.j2
+    dest: "{{ vault_etc_dir }}/vault.hcl"
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: "0640"
+  notify: Restart Vault
+
+- name: Deploy logrotate rule for audit log
+  ansible.builtin.template:
+    src: vault-logrotate.j2
+    dest: /etc/logrotate.d/vault
+    owner: root
+    group: root
+    mode: "0644"

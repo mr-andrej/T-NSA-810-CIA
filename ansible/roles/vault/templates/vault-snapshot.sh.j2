@@ -1,0 +1,21 @@
+#!/bin/bash
+## Managed by Ansible — see roles/vault/tasks/backup.yml.
+set -euo pipefail
+
+BACKUP_DIR="{{ vault_backup_dir }}"
+DATA_DIR="{{ vault_data_dir }}"
+RETENTION_DAYS={{ vault_backup_retention_days }}
+TS=$(date +%Y%m%d-%H%M%S)
+DEST="${BACKUP_DIR}/vault-${TS}.tar.gz"
+
+# Vault uses the file backend — taking a tarball while Vault is running is safe
+# because Bolt-style writes are atomic and we tolerate point-in-time loss.
+tar -C / -czf "${DEST}" --exclude="${DATA_DIR}/core/lock" "${DATA_DIR#/}"
+chmod 0600 "${DEST}"
+chown administrator:administrator "${DEST}"
+
+# Retention: drop snapshots older than RETENTION_DAYS.
+find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'vault-*.tar.gz' \
+    -mtime +${RETENTION_DAYS} -delete
+
+echo "$(date -Iseconds) snapshot=${DEST} size=$(stat -c %s "${DEST}")"

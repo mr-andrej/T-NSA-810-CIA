@@ -4,14 +4,27 @@
   hosts: site1_app:site1_db:s2_js:site2_mt
   gather_facts: true
   become: false
+  vars_files:
+    - ../group_vars/all/vars.yaml
   vars:
     netbox_url: "http://192.168.20.1"
-    netbox_token: "16595d47c51fd81528d5c314d1689b60c777405e"
     device_map:
       s1_app: "S1-APP"
       s1_db: "S1-DB"
       s2_js: "S2-JS"
       s2_mt: "S2-MT"
+
+  pre_tasks:
+    - import_tasks: tasks/vault_login.yml
+
+    - name: Fetch NetBox API token from Vault
+      delegate_to: localhost
+      run_once: true
+      set_fact:
+        netbox_token: "{{ _kv.data.data.token }}"
+      vars:
+        _kv: "{{ lookup('community.hashi_vault.vault_kv2_get', 'netbox/api', url=vault_addr, ca_cert=vault_ca_cert, token=vault_token) }}"
+
   tasks:
     - name: Extract primary interface and IP
       set_fact:

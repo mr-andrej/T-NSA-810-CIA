@@ -1,0 +1,63 @@
+---
+- name: Ensure dependencies are installed
+  ansible.builtin.apt:
+    name:
+      - gpg
+      - ca-certificates
+      - apt-transport-https
+      - python3-cryptography
+    state: present
+    update_cache: true
+
+- name: Remove legacy HashiCorp key with wrong extension (if present)
+  ansible.builtin.file:
+    path: /usr/share/keyrings/hashicorp-archive-keyring.gpg
+    state: absent
+
+- name: Add HashiCorp APT signing key (ASCII-armoured)
+  ansible.builtin.get_url:
+    url: "{{ vault_apt_repo_key_url }}"
+    dest: "{{ vault_apt_repo_key_path }}"
+    mode: "0644"
+    force: true
+
+- name: Add HashiCorp APT repository
+  ansible.builtin.apt_repository:
+    repo: "{{ vault_apt_repo }}"
+    filename: hashicorp
+    state: present
+    update_cache: true
+
+- name: Install Vault package
+  ansible.builtin.apt:
+    name: vault
+    state: present
+
+- name: Ensure Vault system group exists
+  ansible.builtin.group:
+    name: "{{ vault_group }}"
+    system: true
+    state: present
+
+- name: Ensure Vault system user exists
+  ansible.builtin.user:
+    name: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ vault_data_dir }}"
+    create_home: false
+    state: present
+
+- name: Create Vault directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ vault_etc_dir }}", mode: "0750" }
+    - { path: "{{ vault_tls_dir }}", mode: "0750" }
+    - { path: "{{ vault_data_dir }}", mode: "0750" }
+    - { path: "{{ vault_log_dir }}", mode: "0750" }

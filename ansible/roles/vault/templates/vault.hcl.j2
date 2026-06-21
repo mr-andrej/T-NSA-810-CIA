@@ -1,0 +1,27 @@
+## Managed by Ansible — do not edit manually.
+
+ui            = false
+disable_mlock = true
+api_addr      = "{{ vault_api_addr }}"
+cluster_addr  = "https://{{ vault_cluster_address }}:{{ vault_listen_port + 1 }}"
+
+storage "file" {
+  path = "{{ vault_data_dir }}"
+}
+
+listener "tcp" {
+  address       = "{{ vault_listen_address }}:{{ vault_listen_port }}"
+  tls_cert_file = "{{ vault_tls_dir }}/vault.crt"
+  tls_key_file  = "{{ vault_tls_dir }}/vault.key"
+  tls_min_version = "tls12"
+}
+
+# Audit device is enabled at bootstrap via `vault audit enable file`.
+# See docs/secret-management/bootstrap.md.
+
+telemetry {
+  disable_hostname = true
+}
+
+# log_level can be raised to "debug" only temporarily during troubleshooting.
+log_level = "info"

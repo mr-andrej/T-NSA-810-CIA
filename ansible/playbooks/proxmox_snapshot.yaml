@@ -1,10 +1,10 @@
+---
 - name: Manage Proxmox VM snapshots
   hosts: localhost
   gather_facts: false
 
   vars_files:
     - ../group_vars/all/vars.yaml
-    - ../group_vars/all/vault.yaml
 
   vars:
     site:       "{{ site | default('site1') }}"
@@ -14,6 +14,37 @@
     api_user:   "{{ vars[site + '_api_user'] }}"
     api_token:  "{{ vars[site + '_api_token_id'] }}"
     api_secret: "{{ vars[site + '_api_token_secret'] }}"
+    # Fallback chain for token secrets: -e > env var > Vault.
+    # The env-var path covers the pre-bootstrap snapshot (before Vault exists)
+    # and one-off operator runs.
+    site1_api_token_secret: "{{ lookup('env', 'PROXMOX_S1_TOKEN_SECRET') | default('', true) }}"
+    site2_api_token_secret: "{{ lookup('env', 'PROXMOX_S2_TOKEN_SECRET') | default('', true) }}"
+
+  pre_tasks:
+    - import_tasks: tasks/vault_login.yml
+
+    - name: Fetch Proxmox API token secrets from Vault (when available)
+      when:
+        - _vault_available | default(false)
+        - site1_api_token_secret == '' or site2_api_token_secret == ''
+      ansible.builtin.set_fact:
+        site1_api_token_secret: "{{ _site1_kv.data.data.api_token_secret }}"
+        site2_api_token_secret: "{{ _site2_kv.data.data.api_token_secret }}"
+      vars:
+        _site1_kv: "{{ lookup('community.hashi_vault.vault_kv2_get', 'infra/proxmox/site1', url=vault_addr, ca_cert=vault_ca_cert, token=vault_token) }}"
+        _site2_kv: "{{ lookup('community.hashi_vault.vault_kv2_get', 'infra/proxmox/site2', url=vault_addr, ca_cert=vault_ca_cert, token=vault_token) }}"
+
+    - name: Ensure Proxmox token secret is available for the targeted site
+      ansible.builtin.assert:
+        that:
+          - vars[site + '_api_token_secret'] | length > 0
+        fail_msg: |
+          No Proxmox API token secret for {{ site }}. Options:
+            (1) Snapshot via the Proxmox UI directly (recommended for the
+                very first pre-bootstrap run).
+            (2) export PROXMOX_S1_TOKEN_SECRET=... and PROXMOX_S2_TOKEN_SECRET=...
+                then re-run make.
+            (3) Bootstrap Vault first (docs/secret-management/bootstrap.md).
 
   tasks:
     - name: Create snapshot
