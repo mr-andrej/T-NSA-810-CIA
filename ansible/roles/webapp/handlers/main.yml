@@ -1,0 +1,6 @@
+---
+- name: Restart visitapp
+  ansible.builtin.systemd:
+    name: "{{ webapp_name }}"
+    state: restarted
+    daemon_reload: true

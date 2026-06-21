@@ -1,0 +1,28 @@
+[Unit]
+Description=Visit-log web app ({{ webapp_name }})
+Documentation=https://app.site1.internal/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User={{ webapp_user }}
+Group={{ webapp_user }}
+WorkingDirectory={{ webapp_home }}
+EnvironmentFile=/etc/{{ webapp_name }}.env
+ExecStart={{ webapp_bin }}
+Restart=on-failure
+RestartSec=5
+
+# Allow the unprivileged service user to bind the privileged port :80.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+# Hardening.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

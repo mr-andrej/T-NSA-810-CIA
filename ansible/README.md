@@ -126,6 +126,41 @@ GoLand database tool, connect the OpenVPN, then use GoLand's SSH/SSL tab to
 tunnel through the `bastion` host; the connection target stays
 `jdbc:postgresql://10.0.20.1:5432/appdb`.
 
+### `app.yaml`
+
+Deploys **visitapp**, a small Go visit-log web service, on the Site 1 app
+server (`site1_app`, `10.0.10.1`). It is a single static binary run by systemd
+as the unprivileged `visitapp` user (binding `:80` via
+`CAP_NET_BIND_SERVICE`). Each request to `/` records the caller's IP and
+User-Agent in a `visits` table in `appdb` and shows the caller's IP, the total
+visit count and the most recent visits; `/healthz` pings the database and the
+deploy asserts it returns `200`.
+
+The app reuses the existing `appdb`/`appuser` and the **same** vault secret
+(`vault_postgresql_app_password`) created by `db.yaml` — no new database or
+credential. The role installs `golang-go`, copies the sources from
+`roles/webapp/files/` and builds the binary on the host (the module targets Go
+1.22 to match Ubuntu 24.04's `golang-go`, so no toolchain download is needed;
+`go mod download` does need the app server's HTTPS egress).
+
+```bash
+ansible-galaxy collection install -r requirements.yml   # one-time
+
+# First time only: authorize this laptop's key on the app server (same two-key
+# bastion model as s1_db), so Ansible's ProxyJump final hop is accepted.
+cat ~/.ssh/id_ed25519_NSA.pub | ssh bastion 'ssh s1-app "cat >> ~/.ssh/authorized_keys"'
+
+# Apply. Override ansible_user with -e if you log in as a personal account.
+ansible-playbook playbooks/app.yaml --ask-vault-pass -e ansible_user=<you>
+```
+
+**Access.** The app is reachable **only over the VPN**. `app.site1.internal`
+resolves to `10.0.10.1` via the Site 1 firewall's DNS resolver, the SERVERS
+VLAN is already permitted to the DB, and the inter-sites OpenVPN rule lets VPN
+clients reach `10.0.10.1:80` while the WAN is blocked — so no firewall change
+is needed. Visit `http://app.site1.internal/` (or `http://10.0.10.1/` if your
+VPN client does not resolve `site1.internal`).
+
 ### `s1_fw.yaml`
 
 Configures the Site 1 pfSense firewall (`site1_fw`) end to end — VLANs,

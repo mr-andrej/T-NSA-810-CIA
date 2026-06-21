@@ -1,0 +1,6 @@
+- name: Deploy the visit-log web app on the Site 1 app server
+  hosts: site1_app
+  become: true
+
+  roles:
+    - webapp
