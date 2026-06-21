@@ -1,0 +1,72 @@
+name: ansible-ci
+
+# Static checks only — no host is contacted and no secret is needed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "ansible/**"
+      - ".github/workflows/ansible-ci.yml"
+
+defaults:
+  run:
+    working-directory: ansible
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible-core
+        run: pip install "ansible-core>=2.16,<2.17"
+
+      - name: Install collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+      # `--syntax-check` parses every playbook (and its imported tasks/roles) so
+      # malformed YAML, an unknown module, or a broken include fails the PR.
+      # Pin the static inventory: the default `inventory/` also loads the NetBox
+      # dynamic plugin, which needs NETBOX_TOKEN and a reachable host.
+      - name: Syntax-check every playbook
+        run: |
+          rc=0
+          for pb in playbooks/*.yaml; do
+            if ansible-playbook -i inventory/hosts.yaml --syntax-check "$pb"; then
+              echo "ok:   $pb"
+            else
+              echo "FAIL: $pb"
+              rc=1
+            fi
+          done
+          exit $rc
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linters
+        run: pip install ansible-lint yamllint
+
+      # ansible-lint resolves roles and modules, so it needs the collections.
+      - name: Install collections
+        run: ansible-galaxy collection install -r requirements.yml
+
+      # Config lives in ansible/: .yamllint (YAML style, tuned to house style)
+      # and .ansible-lint (basic profile). yamllint owns YAML; ansible-lint owns
+      # Ansible semantics.
+      - name: yamllint
+        run: yamllint .
+
+      - name: ansible-lint
+        run: ansible-lint

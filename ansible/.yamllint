@@ -1,0 +1,30 @@
+# yamllint tuned for this repo's house style. The codebase deliberately aligns
+# values (colons/commas padded for readability) and uses Jinja `{{ var }}`
+# spacing, so those rules are relaxed. yamllint still catches the things that
+# actually matter: tabs, trailing whitespace, duplicate keys, broken structure.
+extends: default
+
+rules:
+  # Alignment padding is intentional throughout (host_vars, playbook vars).
+  colons:
+    max-spaces-after: -1
+  commas:
+    max-spaces-after: -1
+  braces:
+    max-spaces-inside: -1           # allow aligned `{{ var }}` and flow maps
+  # List over-indentation is stylistic here; surface it but don't fail CI.
+  indentation:
+    level: warning
+  line-length:
+    max: 160
+    level: warning
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false              # don't flag `on:` in workflow files
+  document-start: disable
+
+ignore: |
+  .github/

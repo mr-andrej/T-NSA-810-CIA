@@ -1,0 +1,24 @@
+# Gate at the `basic` profile: catches genuine breakage and missing task names
+# without demanding the production-profile style overhaul (FQCN everywhere,
+# role-var prefixes) that would mean reformatting working code on this repo.
+profile: basic
+
+exclude_paths:
+  - .github/
+  # Test harness — linted by yamllint only.
+  - playbooks/non_regression.yaml
+
+skip_list:
+  # YAML style is owned by the dedicated yamllint job (.yamllint), which honors
+  # this repo's deliberate alignment. Skip here to avoid conflicting double-coverage.
+  - yaml
+  # Role vars use short prefixes (pg_, fw_) by convention. Renaming them ripples
+  # into templates and playbooks for no correctness gain.
+  - var-naming[no-role-prefix]
+  # become_user without a sibling become works here: every affected play sets
+  # `become: true` at play level, so privilege is inherited. Lint false positive.
+  - partial-become
+  # Existing tasks/handlers predate this gate; we don't retrofit names/casing on
+  # working code. The gate still catches real breakage and regressions.
+  - name[missing]
+  - name[casing]
