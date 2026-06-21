@@ -8,3 +8,4 @@ collections:
   - name: community.hashi_vault
   - name: ansible.posix
   - name: community.postgresql
+  - name: netbox.netbox
