@@ -177,3 +177,36 @@ ansible-galaxy collection install -r requirements.yml   # one-time
 ansible-playbook playbooks/s1_fw.yaml --check           # dry run
 ansible-playbook playbooks/s1_fw.yaml                   # apply
 ```
+
+### `s2_fw.yaml`
+
+Configures the Site 2 pfSense firewall (`site2_fw`) with the same `firewall`
+role and data model — VLANs (DMZ/MONITORING), OPT1/OPT2 interfaces,
+least-privilege rules, DHCP, and the DNS Resolver (host overrides +
+`site1.internal` domain override). It codifies the hand-built configuration
+(see the wiki "Site 2 Firewall" runbook) plus the rules added for the s1 stack
+(Vault `:8200` and Admin-VPN→app `:80`). All data lives in
+`inventory/host_vars/s2_fw.yaml`.
+
+> **The two OpenVPN servers (Admin VPN 1194, site-to-site 1195) and their
+> certificates are NOT managed** — the role only handles an OpenVPN *client*,
+> and server/PKI provisioning isn't safely idempotent. They stay configured by
+> hand per the runbook.
+
+```bash
+ansible-galaxy collection install -r requirements.yml   # one-time
+
+# One-time SSH bootstrap on the box: enable SSH (System > Advanced > Admin
+# Access), add your laptop pubkey (User Manager > admin), and add the mgmt rule
+# 192.168.100.0/24 → This Firewall:22 by hand (it's in host_vars with a matching
+# description so the playbook then adopts it). Connect over the Admin VPN.
+
+ansible-playbook playbooks/s2_fw.yaml --check           # dry run — ALWAYS do this first
+ansible-playbook playbooks/s2_fw.yaml                   # apply
+```
+
+> **Run `--check` first.** The role positions each rule relative to the previous
+> rule *of the same name*, so if an existing hand-made rule's description doesn't
+> match the data model character-for-character, applying would create a
+> duplicate. The `--check` diff shows mismatches to reconcile first. Same for the
+> interface `descr` (`DMZ` / `MONITORING`) vs. what OPT1/OPT2 are actually named live.

@@ -5,9 +5,16 @@ Configures a **pfSense** firewall declaratively with the
 The modules run *on* the firewall over SSH (as `admin`, which is root — no
 `become`), so nothing is installed on the pfSense VM itself.
 
-Implements the Site 1 firewall runbook: VLAN segmentation, OPTx interfaces,
+Implements both site firewall runbooks: VLAN segmentation, OPTx interfaces,
 least-privilege rules, DHCP per VLAN, the DNS Resolver (host + domain
 overrides), and — opt-in — the OpenVPN site-to-site client.
+
+Drives two hosts off the same role, each with its own data file:
+- **S1-FW** — `inventory/host_vars/s1_fw.yaml` via `playbooks/s1_fw.yaml`
+- **S2-FW** — `inventory/host_vars/s2_fw.yaml` via `playbooks/s2_fw.yaml`
+
+> The OpenVPN **servers** on S2-FW (Admin VPN 1194, site-to-site 1195) and all
+> certificates are out of scope — the role manages an OpenVPN *client* only.
 
 ## Requirements
 
@@ -32,7 +39,8 @@ On pfSense: **System > Advanced > Admin Access > Secure Shell** → enable SSH.
 
 ## Variables
 
-All data lives in `inventory/host_vars/s1_fw.yaml`. Key conventions:
+All data lives in the per-host file (`inventory/host_vars/s1_fw.yaml`,
+`inventory/host_vars/s2_fw.yaml`). Key conventions:
 
 - **`fw_lan_parent`** — the trunk NIC that carries the LAN VLANs. Confirm which
   `vtnetX` is your LAN port; WAN is the other one.
@@ -53,3 +61,8 @@ ansible-playbook playbooks/s1_fw.yaml --check        # dry run (diff vs live)
 ansible-playbook playbooks/s1_fw.yaml --tags rules   # one section
 ansible-playbook playbooks/s1_fw.yaml --skip-tags openvpn
 ```
+
+S2-FW uses the same commands with `playbooks/s2_fw.yaml`. **Always `--check`
+first on S2-FW** — it was built by hand, so rule descriptions must match the
+data model exactly or applying creates duplicates (the role positions each rule
+after the previous one *of the same name*).

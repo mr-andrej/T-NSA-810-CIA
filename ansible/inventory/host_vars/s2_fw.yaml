@@ -1,0 +1,304 @@
+---
+# =============================================================================
+# S2-FW (pfSense) — full configuration data model.
+# Consumed by the `firewall` role via playbooks/s2_fw.yaml.
+# Mirrors the wiki runbook "Site 2 Firewall Configuration (pfSense)" plus the
+# rules/overrides added when the s1-db/s1-app stack went live (Vault access,
+# Admin-VPN → app, site1.internal domain override).
+# =============================================================================
+
+# ---- Connection -------------------------------------------------------------
+# pfSense modules run on the firewall itself over SSH, as the admin user (= root,
+# so no become). One-time bootstrap on the box BEFORE the first run:
+#   1. System > Advanced > Admin Access > Secure Shell  → enable SSH
+#   2. User Manager > admin > Authorized SSH Keys        → add your laptop pubkey
+#   3. Add the OpenVPN mgmt rule by hand (source 192.168.100.0/24 → This Firewall
+#      :22) — the same rule is in fw_rules below with this exact description, so
+#      the playbook then adopts it instead of creating a duplicate.
+#
+# Reached directly over the Admin VPN: s2_fw IS the Admin VPN server, so its
+# tunnel-side IP 192.168.100.1 is reachable from your laptop once connected.
+ansible_host: 192.168.100.1          # s2_fw Admin-VPN interface
+ansible_user: admin
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519_NSA
+ansible_ssh_common_args: "-o IdentitiesOnly=yes"
+ansible_become: false
+# Point at pfSense's bundled python. Verify the minor version on the box with:
+#   ls /usr/local/bin/python3*
+ansible_python_interpreter: /usr/local/bin/python3.11
+
+# ---- System -----------------------------------------------------------------
+fw_hostname: S2-FW
+fw_domain: site2.internal
+
+# NIC layout (per runbook): vtnet0 = WAN, vtnet1 = LAN trunk carrying the VLANs.
+# The base LAN interface (192.168.1.254/24) and WAN are assigned by hand; this
+# role only manages the VLAN OPTx interfaces below.
+#   OPT1 = VLAN 10 on vtnet1 (DMZ),  OPT2 = VLAN 20 on vtnet1 (MONITORING).
+fw_lan_parent: vtnet1
+
+# ---- VLANs (Interfaces > Assignments > VLANs) -------------------------------
+fw_vlans:
+  - { vlan_id: 10, interface: "{{ fw_lan_parent }}", descr: DMZ }
+  - { vlan_id: 20, interface: "{{ fw_lan_parent }}", descr: MONITORING }
+
+# ---- Interface assignments (OPT1 / OPT2) ------------------------------------
+# `descr` becomes the friendly name used by the rules and DHCP below.
+fw_interfaces:
+  - descr: DMZ
+    interface: "{{ fw_lan_parent }}.10"
+    enable: true
+    ipv4_type: static
+    ipv4_address: 192.168.10.1
+    ipv4_prefixlen: 24
+  - descr: MONITORING
+    interface: "{{ fw_lan_parent }}.20"
+    enable: true
+    ipv4_type: static
+    ipv4_address: 192.168.20.254
+    ipv4_prefixlen: 24
+
+# ---- Aliases (Firewall > Aliases > Ports) -----------------------------------
+fw_aliases:
+  - name: HTTPS_HTTP
+    type: port
+    address: "80 443"
+    descr: HTTP and HTTPS ports
+
+# ---- Firewall rules ---------------------------------------------------------
+# One ordered list. The role places each rule after the previous one on the same
+# interface, so list order == top-to-bottom order in the pfSense UI.
+# destination "(self)" == "This Firewall". A trailing block rule = least privilege.
+# NOTE: pfSense's auto-created Anti-Lockout (LAN) and Block-bogon (WAN) rules are
+# system-managed and intentionally NOT listed here.
+fw_rules:
+  # --- WAN (only the OpenVPN endpoints are exposed) ---
+  - name: "[EMERGENCY] Kill switch — Block all WAN (disabled by default)"
+    interface: wan
+    action: block
+    source: any
+    destination: any
+    disabled: true        # enable only during an incident
+  - name: "VPN — Tunnel site-to-site depuis S1-FW"
+    interface: wan
+    action: pass
+    protocol: udp
+    source: 5.196.50.51   # S1-FW public IP (initiates the S2S tunnel)
+    destination: "(self)"
+    destination_port: "1195"
+  - name: "VPN — Accès Admin VPN clients (certificat requis)"
+    interface: wan
+    action: pass
+    protocol: udp
+    source: any
+    destination: "(self)"
+    destination_port: "1194"
+  - name: "Block — Refus de tout trafic WAN non autorisé"
+    interface: wan
+    action: block
+    source: any
+    destination: any
+
+  # --- LAN (192.168.1.0/24, only pfSense lives here) ---
+  - name: "DNS — Résolution DNS depuis LAN S2 via pfSense"
+    interface: lan
+    action: pass
+    protocol: tcp/udp
+    source: 192.168.1.0/24
+    destination: "(self)"
+    destination_port: "53"
+  - name: "Block — Refus de tout trafic LAN non autorisé"
+    interface: lan
+    action: block
+    source: any
+    destination: any
+
+  # --- OPT1 / DMZ (VLAN 10, Bastion 192.168.10.10) ---
+  - name: "DNS — Résolution DNS bastion via pfSense et externe"
+    interface: DMZ
+    action: pass
+    protocol: tcp/udp
+    source: 192.168.10.0/24
+    destination: any
+    destination_port: "53"
+  - name: "SSH — Rebond bastion vers Monitoring S2"
+    interface: DMZ
+    action: pass
+    protocol: tcp
+    source: 192.168.10.0/24
+    destination: 192.168.20.0/24
+    destination_port: "22"
+  - name: "SSH — Bastion vers VMs Site 1 via tunnel"
+    interface: DMZ
+    action: pass
+    protocol: tcp
+    source: 192.168.10.0/24
+    destination: 10.0.0.0/8
+    destination_port: "22"
+  - name: "HTTP/HTTPS — Mises à jour système bastion"
+    interface: DMZ
+    action: pass
+    protocol: tcp
+    source: 192.168.10.0/24
+    destination: any
+    destination_port: HTTPS_HTTP
+  - name: "Block — Refus de tout trafic DMZ non autorisé"
+    interface: DMZ
+    action: block
+    source: any
+    destination: any
+
+  # --- OPT2 / MONITORING (VLAN 20, Ops stack 192.168.20.1: Ansible/Vault/NetBox) ---
+  - name: "DNS — Résolution DNS Monitoring via pfSense et externe"
+    interface: MONITORING
+    action: pass
+    protocol: tcp/udp
+    source: 192.168.20.0/24
+    destination: any
+    destination_port: "53"
+  - name: "ICMP — Ping gateway pour diagnostic"
+    interface: MONITORING
+    action: pass
+    protocol: icmp
+    source: 192.168.20.0/24
+    destination: "(self)"
+  - name: "SSH — Ansible/Terraform vers Site 1 via tunnel"
+    interface: MONITORING
+    action: pass
+    protocol: tcp
+    source: 192.168.20.0/24
+    destination: 10.0.0.0/8
+    destination_port: "22"
+  - name: "HTTP/HTTPS — Mises à jour système et outils Monitoring"
+    interface: MONITORING
+    action: pass
+    protocol: tcp
+    source: 192.168.20.0/24
+    destination: any
+    destination_port: HTTPS_HTTP
+  - name: "Block — Refus de tout trafic Monitoring non autorisé"
+    interface: MONITORING
+    action: block
+    source: any
+    destination: any
+
+  # --- OpenVPN (Admin VPN 1194 + site-to-site 1195). Order is critical:
+  #     the direct-SSH block must precede the inter-sites allow. ---
+  - name: "Admin — Accès webUI pfSense S2 depuis Admin VPN client"
+    interface: openvpn
+    action: pass
+    protocol: tcp
+    source: 192.168.100.0/24
+    destination: "(self)"
+    destination_port: "443"
+  - name: "Admin — Accès webUI pfSense S2 depuis tunnel VPN"
+    interface: openvpn
+    action: pass
+    protocol: tcp
+    source: 172.16.0.0/30
+    destination: "(self)"
+    destination_port: "443"
+  # NOT in the original runbook — added for Ansible mgmt over SSH. Add it by hand
+  # during the SSH bootstrap with this exact description so the playbook adopts it.
+  - name: "Admin — SSH pfSense S2 depuis Admin VPN (gestion Ansible)"
+    interface: openvpn
+    action: pass
+    protocol: tcp
+    source: 192.168.100.0/24
+    destination: "(self)"
+    destination_port: "22"
+  - name: "Block — SSH direct depuis Admin VPN vers Monitoring (passer par bastion)"
+    interface: openvpn
+    action: block
+    protocol: tcp
+    source: 192.168.100.0/24
+    destination: 192.168.20.0/24
+    destination_port: "22"
+  - name: "SSH — Accès admin VPN vers bastion DMZ"
+    interface: openvpn
+    action: pass
+    protocol: tcp
+    source: 192.168.100.0/24
+    destination: 192.168.10.0/24
+    destination_port: "22"
+  - name: "Inter-sites — Trafic S1 vers réseau S2 via tunnel"
+    interface: openvpn
+    action: pass
+    protocol: tcp/udp
+    source: 10.0.0.0/8
+    destination: 192.168.0.0/16
+  - name: "Admin — Accès webUI pfSense S1 depuis Admin VPN client"
+    interface: openvpn
+    action: pass
+    protocol: tcp
+    source: 192.168.100.0/24
+    destination: 10.0.0.0/8
+    destination_port: "443"
+  # --- Added when the s1-db/s1-app stack went live (least-privilege, scoped) ---
+  - name: "Vault — Accès Vault s2-mt depuis Admin VPN"
+    interface: openvpn
+    action: pass
+    protocol: tcp
+    source: 192.168.100.0/24
+    destination: 192.168.20.1/32
+    destination_port: "8200"
+  - name: "App S1 — HTTP depuis Admin VPN (vers SERVERS VLAN uniquement)"
+    interface: openvpn
+    action: pass
+    protocol: tcp
+    source: 192.168.100.0/24
+    destination: 10.0.10.0/24
+    destination_port: "80"
+  - name: "Block — Refus de tout trafic tunnel non autorisé"
+    interface: openvpn
+    action: block
+    source: any
+    destination: any
+
+# ---- DHCP servers (Services > DHCP Server) ----------------------------------
+# Pool starts at .100; .1-.99 reserved for static hosts. All hosts are static
+# today, but the scopes match the runbook.
+fw_dhcp_servers:
+  - interface: DMZ
+    enable: true
+    range_from: 192.168.10.100
+    range_to: 192.168.10.200
+    gateway: 192.168.10.1
+    dnsserver: [192.168.10.1]
+    domain: site2.internal
+  - interface: MONITORING
+    enable: true
+    range_from: 192.168.20.100
+    range_to: 192.168.20.200
+    gateway: 192.168.20.254
+    dnsserver: [192.168.20.254]
+    domain: site2.internal
+
+# ---- DNS Resolver (Services > DNS Resolver) ---------------------------------
+# The runbook runs s2_fw with forwarding mode ENABLED; the site1.internal domain
+# override still resolves through the tunnel (forward-zones take precedence). If
+# overrides ever return NXDOMAIN, restart unbound first; only then consider
+# flipping forwarding off (s1_fw keeps it off).
+fw_dns_resolver:
+  state: present
+  active_interface: [all]
+  outgoing_interface: [all]
+  dnssec: true
+  forwarding: true
+  regdhcp: true
+  regdhcpstatic: true
+  hosts:
+    - { host: bastion,  domain: site2.internal, ip: 192.168.10.10, descr: Bastion VM }
+    - { host: ops,      domain: site2.internal, ip: 192.168.20.1,  descr: Monitoring VM }
+    - { host: firewall, domain: site2.internal, ip: 192.168.1.254, descr: pfSense S2-FW }
+  domainoverrides:
+    - { domain: site1.internal, ip: 172.16.0.2, descr: Forward Site 1 queries to S1-FW via VPN tunnel }
+
+# ---- OpenVPN servers (NOT managed by this role) -----------------------------
+# s2_fw runs two OpenVPN SERVERS — Admin VPN (UDP 1194) and the site-to-site
+# tunnel (UDP 1195) — plus their CA/certs/TLS keys. The firewall role only
+# manages an OpenVPN *client*, and server+PKI provisioning is not safely
+# idempotent, so these stay configured by hand per the wiki runbooks. Leave the
+# client management off.
+fw_manage_openvpn_client: false
+fw_openvpn_client: {}
