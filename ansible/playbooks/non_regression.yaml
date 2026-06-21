@@ -1,0 +1,373 @@
+---
+# Non-regression test suite
+# ─────────────────────────
+# Exercises every functional path of the infrastructure so any breaking
+# change shows up immediately. Pass/fail via `ansible.builtin.assert` —
+# exit code 0 only if every check succeeds.
+#
+# Run all categories:
+#   ansible-playbook playbooks/non_regression.yaml
+#
+# Targeted run (after a firewall change for instance):
+#   ansible-playbook playbooks/non_regression.yaml --tags firewall,bastion
+#
+# Available tags:
+#   vault, network, firewall, firewall_negative, bastion, dns,
+#   observability, netbox, database, application
+#
+# Prerequisites on the controller:
+#   - Connected to Admin VPN (192.168.100.0/24)
+#   - ~/.ansible/vault-secret-id  (AppRole secret_id)
+#   - ~/.ansible/vault-ca.crt     (Vault CA cert)
+#   - SSH config with `Host bastion` + `ProxyJump bastion` for managed VMs
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 1 — Vault reachability + AppRole login + KV read
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] Vault"
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all/vars.yaml
+  tags: [vault, always]
+
+  tasks:
+    - name: Vault HTTP /sys/health reachable
+      ansible.builtin.uri:
+        url: "{{ vault_addr }}/v1/sys/health"
+        ca_path: "{{ vault_ca_cert }}"
+        status_code: [200, 429, 472, 473, 501, 503]
+      register: _vault_health
+
+    - name: Assert Vault is initialized AND unsealed
+      ansible.builtin.assert:
+        that:
+          - _vault_health.json.initialized
+          - not _vault_health.json.sealed
+        fail_msg: "REGRESSION: Vault is sealed or uninitialized — {{ _vault_health.json }}"
+
+    - import_tasks: tasks/vault_login.yml
+
+    - name: Assert AppRole login produced a token
+      ansible.builtin.assert:
+        that:
+          - _vault_available
+          - vault_token | length > 0
+        fail_msg: "REGRESSION: AppRole login failed — check ~/.ansible/vault-secret-id"
+
+    - name: Read a known KV path to confirm policy works
+      delegate_to: localhost
+      ansible.builtin.set_fact:
+        _netbox_api_token: "{{ lookup('community.hashi_vault.vault_kv2_get', 'netbox/api', url=vault_addr, ca_cert=vault_ca_cert, token=vault_token).data.data.token }}"
+
+    - name: Assert the token is not empty
+      ansible.builtin.assert:
+        that: _netbox_api_token | length > 0
+        fail_msg: "REGRESSION: secret/netbox/api returned an empty token"
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 2 — Network reachability (per managed VM)
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] Network reachability"
+  hosts: site1_app:site1_db:site2_js:site2_mt
+  gather_facts: false
+  tags: [network]
+
+  tasks:
+    - name: SSH reachable via bastion ProxyJump
+      ansible.builtin.ping:
+
+    # ICMP out is blocked by design — only TCP 80/443 is allowed outbound.
+    # We probe a known-good public HTTPS endpoint instead.
+    - name: Outbound HTTPS (system updates path) works to a public host
+      ansible.builtin.command: curl -fsS --max-time 8 -o /dev/null -w "%{http_code}" https://www.google.com/generate_204
+      changed_when: false
+      register: _net_http
+      failed_when: _net_http.stdout not in ['200', '204']
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 3 — Firewall POSITIVE checks (allowed paths must work)
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] Firewall — allowed paths"
+  hosts: localhost
+  gather_facts: false
+  tags: [firewall]
+
+  vars:
+    # (source group, dest host, dest port, label)
+    allowed_paths:
+      - { src: s1_app,    dst: 10.0.20.1,     port: 5432,  label: "S1-APP → S1-DB PostgreSQL" }
+      - { src: s1_app,    dst: 192.168.20.1,  port: 5514,  label: "S1-APP → JUNKyard syslog" }
+      - { src: s1_app,    dst: 192.168.20.1,  port: 8200,  label: "S1-APP → Vault" }
+      - { src: s2_js,     dst: 192.168.20.1,  port: 8200,  label: "Bastion → Vault" }
+      - { src: s2_js,     dst: 10.0.10.1,     port: 22,    label: "Bastion → S1-APP SSH (tunnel)" }
+      - { src: s2_js,     dst: 10.0.20.1,     port: 22,    label: "Bastion → S1-DB SSH (tunnel)" }
+      - { src: localhost, dst: 10.0.10.1,     port: 80,    label: "Admin VPN → visitapp HTTP (webapp must be reachable)" }
+
+  tasks:
+    - block:
+        - name: Probe every allowed firewall path
+          delegate_to: "{{ item.src }}"
+          ansible.builtin.wait_for:
+            host: "{{ item.dst }}"
+            port: "{{ item.port }}"
+            timeout: 5
+            state: started
+          loop: "{{ allowed_paths }}"
+          loop_control:
+            label: "{{ item.label }}"
+          register: _allowed_results
+          ignore_errors: true
+
+        - name: Assert every allowed path opened
+          ansible.builtin.assert:
+            that: item is not failed
+            fail_msg: "FUNCTIONAL REGRESSION: {{ item.item.label }} did not open ({{ item.item.dst }}:{{ item.item.port }} from {{ item.item.src }}) — firewall rule missing OR service not listening"
+          loop: "{{ _allowed_results.results }}"
+          loop_control:
+            label: "{{ item.item.label }}"
+      always:
+        # Even if the assert fails, clear the failure so subsequent plays
+        # (the SECURITY checks below) still run.
+        - meta: clear_host_errors
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 4 — Firewall NEGATIVE checks (blocked paths must REMAIN blocked)
+# These are the security regression catchers — if any of these starts to
+# succeed, a firewall rule has been broken.
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] Firewall — denied paths (security)"
+  hosts: localhost
+  gather_facts: false
+  tags: [firewall, firewall_negative, security]
+
+  vars:
+    denied_paths:
+      - { src: localhost, dst: 10.0.10.1,    port: 22,    label: "Admin VPN → S1-APP direct SSH (must be blocked, use bastion)" }
+      - { src: localhost, dst: 10.0.20.1,    port: 22,    label: "Admin VPN → S1-DB direct SSH (must be blocked, use bastion)" }
+      - { src: localhost, dst: 192.168.20.1, port: 22,    label: "Admin VPN → S2-MT direct SSH (must be blocked, use bastion)" }
+      - { src: s1_db,     dst: 10.0.10.1,    port: 22,    label: "S1-DB → S1-APP SSH (DB must not initiate)" }
+      # WAN exposure — pfSense admin UI must NEVER answer on the public IP.
+      # Goes via the laptop's local internet because Admin VPN is split-tunnel
+      # (its local networks don't include public WAN ranges).
+      - { src: localhost, dst: 5.196.50.51,  port: 443,   label: "S1-FW WAN HTTPS — admin UI must not be exposed on public IP" }
+      - { src: localhost, dst: 5.196.45.7,   port: 443,   label: "S2-FW WAN HTTPS — admin UI must not be exposed on public IP" }
+      - { src: localhost, dst: 5.196.50.51,  port: 22,    label: "S1-FW WAN SSH — must not be exposed on public IP" }
+      - { src: localhost, dst: 5.196.45.7,   port: 22,    label: "S2-FW WAN SSH — must not be exposed on public IP" }
+
+  tasks:
+    - block:
+        - name: Probe every path that MUST be denied
+          delegate_to: "{{ item.src }}"
+          ansible.builtin.wait_for:
+            host: "{{ item.dst }}"
+            port: "{{ item.port }}"
+            timeout: 4
+            state: started
+          loop: "{{ denied_paths }}"
+          loop_control:
+            label: "{{ item.label }}"
+          register: _denied_results
+          ignore_errors: true
+
+        - name: Assert every denied path actually failed
+          ansible.builtin.assert:
+            that: item is failed
+            fail_msg: "SECURITY REGRESSION: {{ item.item.label }} succeeded — firewall rule has been weakened or reordered"
+          loop: "{{ _denied_results.results }}"
+          loop_control:
+            label: "{{ item.item.label }}"
+      always:
+        - meta: clear_host_errors
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 5 — Bastion access (ProxyJump chain works)
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] Bastion ProxyJump chain"
+  hosts: site2_js:site1_app:site1_db:site2_mt
+  gather_facts: false
+  tags: [bastion]
+
+  tasks:
+    - name: SSH via bastion / ProxyJump works for {{ inventory_hostname }}
+      ansible.builtin.command: "true"
+      changed_when: false
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 6 — DNS resolution (local + cross-site)
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] DNS"
+  hosts: site1_app:site2_js
+  gather_facts: false
+  tags: [dns]
+
+  vars:
+    expected_lookups:
+      s1_app:
+        - { name: app.site1.internal,     ip: 10.0.10.1     }
+        - { name: db.site1.internal,      ip: 10.0.20.1     }
+        - { name: bastion.site2.internal, ip: 192.168.10.10 }
+        - { name: ops.site2.internal,     ip: 192.168.20.1  }
+      s2_js:
+        - { name: bastion.site2.internal, ip: 192.168.10.10 }
+        - { name: ops.site2.internal,     ip: 192.168.20.1  }
+        - { name: app.site1.internal,     ip: 10.0.10.1     }
+        - { name: db.site1.internal,      ip: 10.0.20.1     }
+
+  tasks:
+    - name: Expected DNS lookups resolve to the documented IPs
+      ansible.builtin.command: "getent hosts {{ item.name }}"
+      register: _resolved
+      changed_when: false
+      failed_when: item.ip not in _resolved.stdout
+      loop: "{{ expected_lookups[inventory_hostname] }}"
+      loop_control:
+        label: "{{ item.name }} = {{ item.ip }}"
+
+    - name: External DNS (google.com) resolves
+      ansible.builtin.command: "getent hosts google.com"
+      changed_when: false
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 7 — Observability (JUNKyard)
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] Observability — JUNKyard"
+  hosts: site2_mt
+  gather_facts: false
+  tags: [observability]
+
+  tasks:
+    - name: junkyard.service is active
+      ansible.builtin.command: systemctl is-active junkyard.service
+      changed_when: false
+
+    - name: JUNKyard /health endpoint returns 200
+      ansible.builtin.uri:
+        url: http://192.168.20.1:8080/health
+        status_code: 200
+
+    - name: Each managed host has at least one log line in JUNKyard
+      ansible.builtin.command: "junk logs --host {{ item }} --limit 1"
+      changed_when: false
+      register: _junk_logs
+      failed_when: _junk_logs.stdout | trim | length == 0
+      loop: [s1-app, s1-db, s1-fw, s2-fw, s2-js]
+      loop_control:
+        label: "logs from {{ item }}"
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 8 — IPAM (NetBox)
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] IPAM — NetBox"
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all/vars.yaml
+  tags: [netbox]
+
+  pre_tasks:
+    - meta: clear_host_errors
+
+  tasks:
+    - import_tasks: tasks/vault_login.yml
+
+    - name: Fetch NetBox API token from Vault
+      ansible.builtin.set_fact:
+        _nb_token: "{{ lookup('community.hashi_vault.vault_kv2_get', 'netbox/api', url=vault_addr, ca_cert=vault_ca_cert, token=vault_token).data.data.token }}"
+
+    - name: NetBox UI returns 200 from Admin VPN
+      ansible.builtin.uri:
+        url: http://192.168.20.1
+        status_code: 200
+
+    - name: NetBox /api/status authenticates with token
+      ansible.builtin.uri:
+        url: http://192.168.20.1/api/status/
+        headers:
+          Authorization: "Token {{ _nb_token }}"
+        status_code: 200
+      register: _nb_status
+
+    - name: NetBox /api/dcim/devices returns the 6 expected devices
+      ansible.builtin.uri:
+        url: http://192.168.20.1/api/dcim/devices/
+        headers:
+          Authorization: "Token {{ _nb_token }}"
+        status_code: 200
+      register: _nb_devices
+
+    - name: Assert 6 devices registered
+      ansible.builtin.assert:
+        that: _nb_devices.json.count >= 6
+        fail_msg: "REGRESSION: NetBox has only {{ _nb_devices.json.count }} devices (expected ≥ 6)"
+
+    - name: Dynamic inventory --graph returns expected groups
+      ansible.builtin.command: ansible-inventory -i {{ playbook_dir }}/../inventory/netbox_inventory.yaml --graph
+      environment:
+        NETBOX_TOKEN: "{{ _nb_token }}"
+      register: _dyn
+      changed_when: false
+      failed_when:
+        - "'sites_site1' not in _dyn.stdout"
+        - "'sites_site2' not in _dyn.stdout"
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 9 — Database (MongoDB on S1-DB)
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] Database — PostgreSQL"
+  hosts: site1_db
+  gather_facts: false
+  become: true
+  tags: [database]
+
+  tasks:
+    - name: postgresql service is active
+      ansible.builtin.command: systemctl is-active postgresql
+      changed_when: false
+
+    - name: PostgreSQL accepts queries on the app DB
+      become_user: postgres
+      ansible.builtin.command: >
+        psql -d appdb -tAc "SELECT 1"
+      changed_when: false
+      register: _pg_query
+      failed_when: _pg_query.stdout | trim != '1'
+
+    - name: appuser role exists
+      become_user: postgres
+      ansible.builtin.command: >
+        psql -d appdb -tAc "SELECT 1 FROM pg_roles WHERE rolname='appuser'"
+      changed_when: false
+      register: _pg_role
+      failed_when: _pg_role.stdout | trim != '1'
+
+# ────────────────────────────────────────────────────────────────────────
+# Play 10 — Application layer (placeholder — extend per app)
+# ────────────────────────────────────────────────────────────────────────
+- name: "[non-regression] Application — visitapp"
+  hosts: localhost
+  gather_facts: false
+  tags: [application]
+
+  pre_tasks:
+    - meta: clear_host_errors
+
+  tasks:
+    - name: visitapp HTTP root returns 200 from Admin VPN
+      ansible.builtin.uri:
+        url: http://10.0.10.1/
+        status_code: 200
+        timeout: 5
+        return_content: true
+      register: _visitapp_root
+
+    - name: visitapp response is non-empty (sanity)
+      ansible.builtin.assert:
+        that: _visitapp_root.content | length > 0
+        fail_msg: "REGRESSION: visitapp responds 200 but body is empty"
+
+    - name: visitapp.service is active on S1-APP
+      delegate_to: s1_app
+      become: true
+      ansible.builtin.command: systemctl is-active visitapp
+      changed_when: false
