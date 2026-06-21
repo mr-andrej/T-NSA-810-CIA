@@ -1,4 +1,4 @@
-PLAYBOOK = ansible-playbook playbooks/proxmox_snapshot.yaml --ask-vault-pass
+PLAYBOOK = ansible-playbook playbooks/proxmox_snapshot.yaml
 SNAP    ?= snapshot
 
 # Site 1 — ns3183326.ip-146-59-253.eu
@@ -44,6 +44,9 @@ snap.delete.site2.mt:   ; $(PLAYBOOK) -e "snap_action=delete  site=site2 vmid=$(
 .PHONY: help
 help:
 	@echo "Usage: make snap.<action>.<site>.<vm> SNAP=<name>"
+	@echo ""
+	@echo "Pre-requisite: ~/.ansible/vault-ca.crt and ~/.ansible/vault-secret-id"
+	@echo "must be present. See docs/secret-management/bootstrap.md."
 	@echo ""
 	@echo "Actions:  create  restore  delete"
 	@echo ""

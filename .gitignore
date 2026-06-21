@@ -1,6 +1,9 @@
 # Visual Studio 2015/2017 cache/options directory
 .vs/
 
+# macOS
+.DS_Store
+
 # Terraform variable files (may contain secrets)
 *.tfvars
 *.tfvars.json
@@ -26,3 +29,17 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# HashiCorp Vault — anything matching the following must never reach the repo
+*.vault-token
+vault-init-keys.txt
+**/vault-snapshots/*
+**/vault-secret-id
+**/vault-ca.crt
+ansible/roles/vault/files/vault-ca.crt
+
+# Local env files that may carry plaintext secrets while populating Vault
+.env
+.env.*
+!.env.example
+secrets.env

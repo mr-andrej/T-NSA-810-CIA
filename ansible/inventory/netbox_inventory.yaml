@@ -1,0 +1,16 @@
+---
+plugin: netbox.netbox.nb_inventory
+api_endpoint: http://192.168.20.1
+# The NetBox API token is read from the NETBOX_TOKEN env var so it never
+# touches the repo. Fetch it before running ansible-inventory:
+#
+#   export NETBOX_TOKEN=$(vault kv get -field=token secret/netbox/api)
+token: "{{ lookup('env', 'NETBOX_TOKEN') }}"
+validate_certs: false
+
+group_by:
+  - sites
+  - device_roles
+
+compose:
+  ansible_host: primary_ip4.address | default('') | ansible.utils.ipaddr('address')

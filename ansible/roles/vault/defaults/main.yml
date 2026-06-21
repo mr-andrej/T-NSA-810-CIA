@@ -1,0 +1,47 @@
+---
+# Vault binary / package
+vault_apt_repo_key_url: "https://apt.releases.hashicorp.com/gpg"
+# APT can read ASCII-armoured keys natively when the path ends in .asc, which
+# saves us a `gpg --dearmor` pre-processing step.
+vault_apt_repo_key_path: "/usr/share/keyrings/hashicorp-archive-keyring.asc"
+vault_apt_repo: "deb [signed-by={{ vault_apt_repo_key_path }}] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+
+# Service user
+vault_user: vault
+vault_group: vault
+
+# Filesystem layout
+vault_etc_dir: /etc/vault.d
+vault_tls_dir: /etc/vault.d/tls
+vault_data_dir: /var/lib/vault
+vault_log_dir: /var/log/vault
+vault_run_dir: /run/vault
+
+# Listener
+vault_listen_address: "192.168.20.1"
+vault_listen_port: 8200
+vault_cluster_address: "127.0.0.1"
+vault_api_addr: "https://{{ vault_listen_address }}:{{ vault_listen_port }}"
+
+# TLS (internal CA)
+vault_ca_common_name: "T-NSA-810-CIA Internal CA"
+vault_ca_validity_days: 3650
+vault_cert_common_name: "vault.site2.internal"
+vault_cert_validity_days: 825
+vault_cert_san_dns:
+  - "vault.site2.internal"
+  - "ops.site2.internal"
+  - "s2-mt"
+vault_cert_san_ip:
+  - "{{ vault_listen_address }}"
+  - "127.0.0.1"
+
+# Resource caps (s2_mt is tight on RAM, see docs/secret-management/architecture.md)
+vault_systemd_memory_max: "200M"
+vault_systemd_memory_swap_max: "100M"
+
+# Backup
+vault_backup_dir: "/home/administrator/junkyard/vault-snapshots"
+vault_backup_retention_days: 14
+vault_backup_cron_hour: "3"
+vault_backup_cron_minute: "30"

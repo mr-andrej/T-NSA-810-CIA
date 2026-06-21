@@ -1,17 +1,33 @@
+---
 - name: Configure bastion host
   hosts: site2_js
   become: true
+  vars_files:
+    - ../group_vars/all/vars.yaml
   vars:
-    bastion_ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBczyxpPoAW0qDE/SjnXOdTkLdmkUxffe/SrMQvrdH7 lucasnimes30000@gmail.com"
-    bastion_users:
-      - name: lucas
-        pc_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGBczyxpPoAW0qDE/SjnXOdTkLdmkUxffe/SrMQvrdH7 lucasnimes30000@gmail.com"
-        sudo: true
-      - name: paul
-        pc_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPTRPkE+TtUowwE0A1klSRqNiEluEiMg93WJJ1a2BDt3 paul1.decauchy@epitech.eu"
-        sudo: true
-      - name: andrej
-        pc_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOpp/sX/ZV2oh2uKiMqzIDPNALDYciDnvO4FWBayxJdI mrandrej@github.com"
-        sudo: true
+    # Liste des comptes admins à provisionner sur le bastion. Les clés publiques
+    # sont récupérées depuis Vault sous secret/infra/ssh/admins/<name>.
+    admin_users:
+      - lucas
+      - paul
+      - andrej
+    bastion_users: []
+
+  pre_tasks:
+    - import_tasks: tasks/vault_login.yml
+
+    - name: Fetch each admin's laptop SSH public key from Vault
+      delegate_to: localhost
+      run_once: true
+      set_fact:
+        bastion_users: "{{ bastion_users + [{'name': item, 'pc_public_key': lookup('community.hashi_vault.vault_kv2_get', 'infra/ssh/admins/' ~ item, url=vault_addr, ca_cert=vault_ca_cert, token=vault_token).data.data.pc_public_key, 'sudo': true}] }}"
+      loop: "{{ admin_users }}"
+
+    - name: Use the first admin's public key as the legacy bastion_ssh_public_key
+      delegate_to: localhost
+      run_once: true
+      set_fact:
+        bastion_ssh_public_key: "{{ (bastion_users | first).pc_public_key }}"
+
   roles:
     - bastion

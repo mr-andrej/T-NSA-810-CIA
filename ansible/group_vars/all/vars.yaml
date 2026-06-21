@@ -1,9 +1,14 @@
+# Vault (HashiCorp Vault on s2_mt — see docs/secret-management/)
+vault_addr: "https://192.168.20.1:8200"
+vault_ca_cert: "{{ lookup('env', 'HOME') }}/.ansible/vault-ca.crt"
+vault_role_id: "74548eb2-be5a-e8d1-b52b-2bf57dee968e"
+vault_secret_id_file: "{{ lookup('env', 'HOME') }}/.ansible/vault-secret-id"
+
+# Proxmox API endpoints (token secrets fetched from Vault at playbook runtime)
 site1_api_host: ns3183326.ip-146-59-253.eu
 site1_api_user: GR37@pve
 site1_api_token_id: ansible
-site1_api_token_secret: "{{ vault_proxmox_api_password_site1 }}"
 
 site2_api_host: ns3050272.ip-51-255-76.eu
 site2_api_user: GR37@pve
 site2_api_token_id: ansible
-site2_api_token_secret: "{{ vault_proxmox_api_password_site2 }}"

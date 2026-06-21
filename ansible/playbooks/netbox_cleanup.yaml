@@ -3,9 +3,20 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  vars_files:
+    - ../group_vars/all/vars.yaml
   vars:
     netbox_url: "http://192.168.20.1"
-    netbox_token: "16595d47c51fd81528d5c314d1689b60c777405e"
+
+  pre_tasks:
+    - import_tasks: tasks/vault_login.yml
+
+    - name: Fetch NetBox API token from Vault
+      set_fact:
+        netbox_token: "{{ _kv.data.data.token }}"
+      vars:
+        _kv: "{{ lookup('community.hashi_vault.vault_kv2_get', 'netbox/api', url=vault_addr, ca_cert=vault_ca_cert, token=vault_token) }}"
+
   tasks:
     - name: Remove fictive eth0 interfaces on synced VMs
       netbox.netbox.netbox_device_interface:

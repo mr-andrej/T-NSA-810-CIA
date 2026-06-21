@@ -1,0 +1,61 @@
+---
+# Shared snippet: authenticate the Ansible controller to Vault via AppRole.
+# Imported by every playbook that needs to read secrets from Vault.
+#
+# Requires the following variables (defined in group_vars/all/vars.yaml):
+#   - vault_addr
+#   - vault_ca_cert
+#   - vault_role_id
+#   - vault_secret_id_file
+#
+# Each operator must have:
+#   - the Vault CA cert at ~/.ansible/vault-ca.crt (fetched at bootstrap)
+#   - their AppRole secret_id at ~/.ansible/vault-secret-id (distributed out
+#     of band, gitignored)
+#
+# Behaviour:
+#   - If the secret_id file is present, performs an AppRole login and sets
+#     `vault_token` as a play-scoped fact.
+#   - If the file is missing, sets `vault_token` to an empty string and
+#     `_vault_available` to false. Calling playbooks must check
+#     `_vault_available` before issuing kv lookups, and provide a fallback
+#     (env var / extra-vars).
+#
+# This lets the very first pre-bootstrap snapshot (taken BEFORE Vault is
+# deployed) run without a Vault instance to talk to.
+
+- name: Check if AppRole secret_id file is present
+  delegate_to: localhost
+  run_once: true
+  ansible.builtin.stat:
+    path: "{{ vault_secret_id_file }}"
+  register: _vault_secret_id_stat
+
+- name: Authenticate to Vault via AppRole
+  delegate_to: localhost
+  run_once: true
+  when: _vault_secret_id_stat.stat.exists
+  community.hashi_vault.vault_login:
+    url: "{{ vault_addr }}"
+    ca_cert: "{{ vault_ca_cert }}"
+    auth_method: approle
+    role_id: "{{ vault_role_id }}"
+    secret_id: "{{ lookup('file', vault_secret_id_file) }}"
+  register: _vault_login
+
+- name: Expose Vault token (or empty placeholder)
+  delegate_to: localhost
+  run_once: true
+  ansible.builtin.set_fact:
+    vault_token: "{{ _vault_login.login.auth.client_token if _vault_secret_id_stat.stat.exists else '' }}"
+    _vault_available: "{{ _vault_secret_id_stat.stat.exists }}"
+
+- name: Warn when Vault is unavailable
+  delegate_to: localhost
+  run_once: true
+  when: not _vault_available
+  ansible.builtin.debug:
+    msg: >-
+      Vault AppRole secret_id not found at {{ vault_secret_id_file }}.
+      Continuing without Vault — secrets must be provided via -e / env vars.
+      See docs/secret-management/bootstrap.md.

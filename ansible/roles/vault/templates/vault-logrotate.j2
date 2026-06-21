@@ -1,0 +1,20 @@
+{{ vault_log_dir }}/audit.log {
+    daily
+    rotate 7
+    compress
+    missingok
+    notifempty
+    create 0640 {{ vault_user }} {{ vault_group }}
+    postrotate
+        kill -HUP $(systemctl show -p MainPID --value vault) 2>/dev/null || true
+    endscript
+}
+
+{{ vault_log_dir }}/snapshot.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+    create 0640 root root
+}

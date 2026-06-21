@@ -1,0 +1,24 @@
+---
+- name: Ensure backup directory exists
+  ansible.builtin.file:
+    path: "{{ vault_backup_dir }}"
+    state: directory
+    owner: administrator
+    group: administrator
+    mode: "0700"
+
+- name: Deploy vault-snapshot.sh
+  ansible.builtin.template:
+    src: vault-snapshot.sh.j2
+    dest: /usr/local/bin/vault-snapshot.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Schedule daily Vault snapshot
+  ansible.builtin.cron:
+    name: "vault snapshot"
+    user: root
+    minute: "{{ vault_backup_cron_minute }}"
+    hour: "{{ vault_backup_cron_hour }}"
+    job: "/usr/local/bin/vault-snapshot.sh >> {{ vault_log_dir }}/snapshot.log 2>&1"

@@ -1,0 +1,97 @@
+---
+# Internal CA + server cert for Vault. The CA cert (vault-ca.crt) must be
+# fetched by each operator and placed in ~/.ansible/vault-ca.crt so that
+# Ansible can validate the Vault TLS chain.
+
+- name: Generate internal CA private key
+  community.crypto.openssl_privatekey:
+    path: "{{ vault_tls_dir }}/ca.key"
+    size: 4096
+    type: RSA
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: "0600"
+
+- name: Generate internal CA CSR
+  community.crypto.openssl_csr:
+    path: "{{ vault_tls_dir }}/ca.csr"
+    privatekey_path: "{{ vault_tls_dir }}/ca.key"
+    common_name: "{{ vault_ca_common_name }}"
+    basic_constraints:
+      - "CA:TRUE"
+    basic_constraints_critical: true
+    key_usage:
+      - keyCertSign
+      - cRLSign
+    key_usage_critical: true
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: "0640"
+
+- name: Self-sign internal CA certificate
+  community.crypto.x509_certificate:
+    path: "{{ vault_tls_dir }}/ca.crt"
+    privatekey_path: "{{ vault_tls_dir }}/ca.key"
+    csr_path: "{{ vault_tls_dir }}/ca.csr"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ vault_ca_validity_days }}d"
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: "0644"
+
+- name: Generate Vault server private key
+  community.crypto.openssl_privatekey:
+    path: "{{ vault_tls_dir }}/vault.key"
+    size: 4096
+    type: RSA
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: "0600"
+
+- name: Generate Vault server CSR
+  community.crypto.openssl_csr:
+    path: "{{ vault_tls_dir }}/vault.csr"
+    privatekey_path: "{{ vault_tls_dir }}/vault.key"
+    common_name: "{{ vault_cert_common_name }}"
+    subject_alt_name: >-
+      {{
+        vault_cert_san_dns | map('regex_replace', '^', 'DNS:') | list
+        +
+        vault_cert_san_ip | map('regex_replace', '^', 'IP:') | list
+      }}
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+    extended_key_usage:
+      - serverAuth
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: "0640"
+
+- name: Sign Vault server certificate with internal CA
+  community.crypto.x509_certificate:
+    path: "{{ vault_tls_dir }}/vault.crt"
+    csr_path: "{{ vault_tls_dir }}/vault.csr"
+    ownca_path: "{{ vault_tls_dir }}/ca.crt"
+    ownca_privatekey_path: "{{ vault_tls_dir }}/ca.key"
+    ownca_not_after: "+{{ vault_cert_validity_days }}d"
+    provider: ownca
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: "0644"
+  notify: Restart Vault
+
+- name: Publish CA certificate to a world-readable location
+  ansible.builtin.copy:
+    src: "{{ vault_tls_dir }}/ca.crt"
+    dest: /etc/ssl/certs/vault-ca.crt
+    owner: root
+    group: root
+    mode: "0644"
+    remote_src: true
+
+- name: Fetch CA certificate to the controller (operators distribute it)
+  ansible.builtin.fetch:
+    src: "{{ vault_tls_dir }}/ca.crt"
+    dest: "files/vault-ca.crt"
+    flat: true

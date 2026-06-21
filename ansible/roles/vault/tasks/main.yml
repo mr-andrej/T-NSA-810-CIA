@@ -1,0 +1,15 @@
+---
+- import_tasks: install.yml
+  tags: [vault, install]
+
+- import_tasks: tls.yml
+  tags: [vault, tls]
+
+- import_tasks: configure.yml
+  tags: [vault, config]
+
+- import_tasks: systemd.yml
+  tags: [vault, systemd]
+
+- import_tasks: backup.yml
+  tags: [vault, backup]

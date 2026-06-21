@@ -1,17 +1,35 @@
+---
 - name: Configure managed VMs
   hosts: site1_app, site1_db, site2_mt
   become: true
+  vars_files:
+    - ../group_vars/all/vars.yaml
   vars:
-    vm_users:
-      - name: lucas
-        bastion_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII9sR53p4rYSNo3G751IqEs/PEOUv+ets1Zl9HKs1hTE"
-        sudo: true
-      - name: paul
-        bastion_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDlPBWC0r+xCfzzSbug/n+ozOP7z7TOmFTol+QvqAGu5"
-        sudo: true
-      - name: andrej
-        bastion_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIkimIhx57e/M/Glw4HZ+p2kmpxVZssPGhcxPUOd1p3C"
-        sudo: true
-    bastion_system_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPYi81/d96pnEde1kJs8IvLe210eMDrKQ+l/quFXWVt"
+    # Liste des comptes admins. Les clés publiques (côté bastion) sont
+    # récupérées depuis Vault sous secret/infra/ssh/admins/<name>.
+    admin_users:
+      - lucas
+      - paul
+      - andrej
+    vm_users: []
+
+  pre_tasks:
+    - import_tasks: tasks/vault_login.yml
+
+    - name: Fetch each admin's bastion-side SSH public key from Vault
+      delegate_to: localhost
+      run_once: true
+      set_fact:
+        vm_users: "{{ vm_users + [{'name': item, 'bastion_public_key': lookup('community.hashi_vault.vault_kv2_get', 'infra/ssh/admins/' ~ item, url=vault_addr, ca_cert=vault_ca_cert, token=vault_token).data.data.bastion_public_key, 'sudo': true}] }}"
+      loop: "{{ admin_users }}"
+
+    - name: Fetch bastion system public key from Vault
+      delegate_to: localhost
+      run_once: true
+      set_fact:
+        bastion_system_public_key: "{{ _kv.data.data.public_key }}"
+      vars:
+        _kv: "{{ lookup('community.hashi_vault.vault_kv2_get', 'infra/ssh/bastion', url=vault_addr, ca_cert=vault_ca_cert, token=vault_token) }}"
+
   roles:
     - managed_vm

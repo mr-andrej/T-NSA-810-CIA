@@ -1,0 +1,5 @@
+## Managed by Ansible — see roles/vault/defaults/main.yml.
+[Service]
+MemoryMax={{ vault_systemd_memory_max }}
+MemorySwapMax={{ vault_systemd_memory_swap_max }}
+LimitMEMLOCK=infinity
