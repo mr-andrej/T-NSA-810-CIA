@@ -202,12 +202,17 @@
   tags: [dns]
 
   vars:
+    dns_servers:
+      s1_app: 10.0.10.254
+      s2_js:  192.168.10.1
+    # s1_app n'a pas besoin de résoudre site2 : par design, les VM site1
+    # ne parlent qu'à leurs voisins locaux et au bastion qui vient à elles
+    # (ProxyJump). Le bastion (s2_js) doit tout connaître pour router les
+    # ProxyJump et ses opérations cross-site.
     expected_lookups:
       s1_app:
         - { name: app.site1.internal,     ip: 10.0.10.1     }
         - { name: db.site1.internal,      ip: 10.0.20.1     }
-        - { name: bastion.site2.internal, ip: 192.168.10.10 }
-        - { name: ops.site2.internal,     ip: 192.168.20.1  }
       s2_js:
         - { name: bastion.site2.internal, ip: 192.168.10.10 }
         - { name: ops.site2.internal,     ip: 192.168.20.1  }
@@ -216,7 +221,7 @@
 
   tasks:
     - name: Expected DNS lookups resolve to the documented IPs
-      ansible.builtin.command: "getent hosts {{ item.name }}"
+      ansible.builtin.command: "dig +short +timeout=3 @{{ dns_servers[inventory_hostname] }} {{ item.name }} A"
       register: _resolved
       changed_when: false
       failed_when: item.ip not in _resolved.stdout
@@ -225,8 +230,10 @@
         label: "{{ item.name }} = {{ item.ip }}"
 
     - name: External DNS (google.com) resolves
-      ansible.builtin.command: "getent hosts google.com"
+      ansible.builtin.command: "dig +short +timeout=3 @{{ dns_servers[inventory_hostname] }} google.com A"
+      register: _ext
       changed_when: false
+      failed_when: _ext.stdout | trim | length == 0
 
 # ────────────────────────────────────────────────────────────────────────
 # Play 7 — Observability (JUNKyard)
