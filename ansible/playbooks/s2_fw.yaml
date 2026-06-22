@@ -1,0 +1,24 @@
+---
+# Configure the Site 2 pfSense firewall (S2-FW).
+#
+# Prereqs (one-time, on the pfSense box):
+#   - System > Advanced > Admin Access > Secure Shell  → enable SSH
+#   - User Manager > admin > Authorized SSH Keys        → add your laptop pubkey
+#   - Add the OpenVPN mgmt rule by hand the first time (192.168.100.0/24 →
+#     This Firewall :22) so Ansible can connect; it is in host_vars/s2_fw.yaml
+#     with a matching description, so the playbook then adopts it.
+#   - ansible-galaxy collection install -r ../requirements.yml
+#   - Be connected to the Admin VPN (s2_fw is reached at 192.168.100.1).
+#
+# Run:
+#   ansible-playbook playbooks/s2_fw.yaml --check        # dry run (diff vs live) — DO THIS FIRST
+#   ansible-playbook playbooks/s2_fw.yaml                # apply
+#   ansible-playbook playbooks/s2_fw.yaml --tags rules   # one section only
+#
+# OpenVPN servers (1194/1195) + certificates are NOT managed here — see the
+# note at the bottom of host_vars/s2_fw.yaml. All other data lives in that file.
+- name: Configure Site 2 firewall (pfSense)
+  hosts: site2_fw
+  gather_facts: false
+  roles:
+    - firewall
